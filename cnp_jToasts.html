@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>문장 복사 박스</title>
+</head>
+<body>
+
+<button id="openPip">핀 모드 열기</button>
+
+<script>
+/* 1. box 데이터 JSON 분리 */
+const boxData = [
+  { type: "일", command: "없", final: "12" },
+  { type: "일", command: "없", final: "1" },
+  { type: "일", command: "없", final: "" },
+
+  { type: "명", command: "1)", final: "11" },
+  { type: "명", command: "1)", final: "6" },
+  { type: "명", command: "1)", final: "" },
+
+  { type: "도", command: "1)", final: "11" },
+  { type: "도", command: "1)", final: "3" },
+  { type: "도", command: "1)", final: "2" }
+];
+
+document.getElementById("openPip").onclick = async () => {
+  const pipWindow = await documentPictureInPicture.requestWindow({
+    width: 450,
+    height: 350
+  });
+
+  pipWindow.document.title = "문장 복사 박스";
+
+  /* style 삽입 */
+  pipWindow.document.head.innerHTML = `
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        background: #f5f5f5;
+        padding: 10px;
+        margin: 0;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+      }
+      .box {
+        background: #ffffff;
+        border: 2px solid #ccc;
+        padding: 8px;
+        cursor: pointer;
+        white-space: pre-line;
+        user-select: none;
+        transition: border-color 0.2s;
+      }
+      .toast {
+        position: fixed;
+        bottom: 12px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0,0,0,0.8);
+        color: #fff;
+        padding: 6px 12px;
+        border-radius: 4px;
+        font-size: 12px;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s;
+      }
+      .toast.show {
+        opacity: 1;
+      }
+    </style>
+  `;
+
+  /* body 기본 구조 */
+  pipWindow.document.body.innerHTML = `
+    <div class="grid"></div>
+    <div class="toast"></div>
+  `;
+
+  const grid = pipWindow.document.querySelector(".grid");
+  const toast = pipWindow.document.querySelector(".toast");
+
+  /* box 생성 */
+  boxData.forEach(item => {
+    const box = pipWindow.document.createElement("div");
+    box.className = "box";
+    box.innerText = `종:${item.type}
+명:${item.command}
+최:${item.final}`;
+    grid.appendChild(box);
+
+    /* 2. 복사 + 성공/실패 색상 분기 */
+    box.addEventListener("click", async () => {
+      try {
+        await pipWindow.navigator.clipboard.writeText(box.innerText);
+        box.style.borderColor = "#2e7d32"; // 성공: 초록
+        showToast("복사되었습니다");
+      } catch (e) {
+        box.style.borderColor = "#c62828"; // 실패: 빨강
+        showToast("복사에 실패했습니다");
+      } finally {
+        setTimeout(() => {
+          box.style.borderColor = "#ccc";
+        }, 400);
+      }
+    });
+  });
+
+  /* 3. 토스트 표시 함수 */
+  function showToast(message) {
+    toast.textContent = message;
+    toast.classList.add("show");
+    setTimeout(() => {
+      toast.classList.remove("show");
+    }, 800);
+  }
+};
+</script>
+
+</body>
+</html>
