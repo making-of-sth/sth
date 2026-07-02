@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>TextGrid 시간 확장 변환기</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; line-height: 1.6; max-width: 900px; margin: 0 auto; background: #f9f9f9; }
+        h2 { color: #333; }
+        textarea { width: 100%; height: 250px; font-family: monospace; padding: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
+        textarea[readonly] { background-color: #fff; cursor: pointer; }
+        textarea[readonly]:hover { border-color: #0056b3; }
+        button { background-color: #e44d26; color: white; padding: 12px 24px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; margin: 15px 0; font-weight: bold; }
+        button:hover { background-color: #f16529; }
+        .box { margin-bottom: 20px; position: relative; }
+        .toast { display: none; position: absolute; bottom: 10px; right: 10px; background: #28a745; color: white; padding: 5px 12px; border-radius: 4px; font-size: 13px; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h2>TextGrid 시간 확장 변환기 (-0.15s / +0.15s)</h2>
+    <p style="color: #333; font-size: 14px;">변환 완료 후 아래 2번 창을 마우스로 클릭하면 무조건 자동 복사됩니다.</p>
+    
+    <div class="box">
+        <strong>1. 원본 TextGrid 내용 붙여넣기:</strong>
+        <textarea id="inputText" placeholder="여기에 TextGrid 파일 내용을 복사해서 붙여넣으세요..."></textarea>
+    </div>
+    
+    <button onclick="convertTextGrid()">TextGrid 변환하기</button>
+    
+    <div class="box">
+        <strong>2. 변환된 결과 (클릭 시 자동 선택 + 복사 보완):</strong>
+        <!-- 보안 우회를 위해 onfocus와 onmouseup을 결합하여 무조건 선택 및 복사되도록 유도합니다 -->
+        <textarea id="outputText" readonly 
+                  onfocus="this.select();" 
+                  onmouseup="forceCopy(this); return false;" 
+                  placeholder="변환된 결과가 여기에 표시됩니다..."></textarea>
+        <div id="toastMessage" class="toast">✅ 복사 완료!</div>
+    </div>
+
+    <script>
+        function convertTextGrid() {
+            const input = document.getElementById("inputText").value;
+            if (!input.trim()) { alert("내용을 입력해 주세요."); return; }
+
+            const lines = input.replace(/\r\n/g, "\n").split("\n");
+            
+            let total_xmax_val = 0;
+            let total_xmax_str = "";
+            for (let line of lines) {
+                if (line.includes("xmax =") && !line.includes("item") && !line.includes("intervals")) {
+                    let val = parseFloat(line.split("=")[1].trim());
+                    if (val > total_xmax_val) {
+                        total_xmax_val = val;
+                        total_xmax_str = line.split("=")[1].trim();
+                    }
+                }
+            }
+
+            let xminList = [];
+            let xmaxList = [];
+            let textList = [];
+
+            for (let i = 0; i < lines.length; i++) {
+                let line = lines[i];
+                if (line.includes("xmin =") && !line.includes("item")) {
+                    xminList.push({ idx: i, val: parseFloat(line.split("=")[1].trim()) });
+                }
+                if (line.includes("xmax =") && !line.includes("item") && !line.includes("intervals")) {
+                    xmaxList.push({ idx: i, val: parseFloat(line.split("=")[1].trim()) });
+                }
+                if (line.includes("text =")) {
+                    let textContent = line.split("=")[1].replace(/"/g, "").trim();
+                    textList.push(textContent !== "");
+                }
+            }
+
+            if (xminList.length > textList.length) xminList.shift();
+            if (xmaxList.length > textList.length) xmaxList.shift();
+
+            let count = textList.length;
+            if (count === 0) { alert("구간 데이터를 인식하지 못했습니다."); return; }
+
+            const MARGIN = 0.15;
+            let newBoundaries = [0.0];
+
+            for (let i = 0; i < count - 1; i++) {
+                let curr_has_text = textList[i];
+                let next_has_text = textList[i+1];
+                let orig_boundary = xmaxList[i].val;
+                let new_b = orig_boundary;
+
+                if (curr_has_text && !next_has_text) {
+                    new_b = orig_boundary + MARGIN;
+                } else if (!curr_has_text && next_has_text) {
+                    new_b = orig_boundary - MARGIN;
+                }
+
+                new_b = parseFloat(new_b.toFixed(15));
+
+                let prev_b = newBoundaries[newBoundaries.length - 1];
+                if (new_b <= prev_b) {
+                    new_b = prev_b + 0.000001;
+                }
+
+                if (new_b > total_xmax_val) new_b = total_xmax_val;
+                newBoundaries.push(new_b);
+            }
+            newBoundaries.push(total_xmax_val);
+
+            let outputLines = [...lines];
+
+            for (let i = 0; i < count; i++) {
+                let xminObj = xminList[i];
+                let xmaxObj = xmaxList[i];
+                let n_xmin = newBoundaries[i];
+                let n_xmax = newBoundaries[i+1];
+
+                let xminIndent = outputLines[xminObj.idx].split("xmin")[0];
+                outputLines[xminObj.idx] = xminIndent + "xmin = " + (n_xmin === 0 ? "0" : n_xmin);
+
+                let xmaxIndent = outputLines[xmaxObj.idx].split("xmax")[0];
+                if (i === count - 1) {
+                    outputLines[xmaxObj.idx] = xmaxIndent + "xmax = " + total_xmax_str;
+                } else {
+                    outputLines[xmaxObj.idx] = xmaxIndent + "xmax = " + n_xmax;
+                }
+            }
+
+            document.getElementById("outputText").value = outputLines.join("\n");
+        }
+
+        // [수정] 보안 우회 및 확실한 복사를 위한 특수 함수
+        function forceCopy(textarea) {
+            if (!textarea.value.trim()) return;
+            
+            // 1. 강제 전체 선택
+            textarea.select();
+            textarea.setSelectionRange(0, 99999);
+            
+            // 2. 구형 보안 우회 방식으로 복사 시도
+            try {
+                var successful = document.execCommand('copy');
+                if (successful) {
+                    showToast();
+                    return;
+                }
+            } catch (err) {
+                // 구형 실패 시 최신 방식으로 2차 시도
+                navigator.clipboard.writeText(textarea.value).then(() => {
+                    showToast();
+                }).catch(e => {
+                    console.log("복사 실패");
+                });
+            }
+        }
+
+        function showToast() {
+            const toast = document.getElementById("toastMessage");
+            toast.style.display = "block";
+            setTimeout(() => { toast.style.display = "none"; }, 1500);
+        }
+    </script>
+</body>
+</html>
