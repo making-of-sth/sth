@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PIP 단어</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background-color: #f0f0f0;
+        }
+        .pip-template {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <h2>PIP 단어</h2>
+    
+    <div style="margin-bottom: 15px;">
+        <label>배열 설정 (행 x 열): </label>
+        <input type="number" id="rowsInput" value="6" min="1" style="width: 50px;"> x 
+        <input type="number" id="colsInput" value="12" min="1" style="width: 50px;">
+        <button id="applyGridBtn">배열 적용</button>
+        <button id="resetStorageBtn" style="margin-left: 10px; background-color: #ffdde0; border: 1px solid #cc8888; cursor: pointer; border-radius: 4px; padding: 2px 6px;">순서 초기화</button>
+    </div>
+
+    <button id="pipBtn" style="padding: 10px 20px; font-size: 16px; cursor: pointer;">
+        PIP 열기
+    </button>
+
+    <div id="pipContent" class="pip-template">
+        <div class="word-grid" id="wordGrid"></div>
+    </div>
+
+    <script>
+        const defaultWords = [
+            "우리집", "사과", "바나나", "호랑이", "컴퓨터", "자동차",
+            "하늘", "바다", "축구", "노래", "책상", "의자",
+            "커피", "노트북", "스마트폰", "자전거", "비행기", "기차",
+            "연필", "지우개", "안경", "시계", "지갑", "가방",
+            "수박", "포도", "오렌지", "딸기", "복숭아", "체리",
+            "강아지", "고양이", "토끼", "다람쥐", "곰", "사자",
+            "태양", "달빛", "별들", "구름", "우산", "장화",
+            "피자", "치킨", "라면", "김밥", "떡볶이", "튀김",
+            "서울", "부산", "제주", "뉴욕", "파리", "런던",
+            "축제", "영화", "음악", "미술", "사진", "거울",
+            "나무", "장미", "튤립", "바람", "바위", "모래",
+            "시작", "끝남", "행복", "사랑", "우정", "희망"
+        ];
+
+        const pipBtn = document.getElementById('pipBtn');
+        const rowsInput = document.getElementById('rowsInput');
+        const colsInput = document.getElementById('colsInput');
+        const applyGridBtn = document.getElementById('applyGridBtn');
+        const resetStorageBtn = document.getElementById('resetStorageBtn');
+        
+        let pipWindow = null;
+        let currentRows = 6;
+        let currentCols = 12;
+        let draggedElement = null;
+
+        function getSavedWords(totalCells) {
+            const saved = localStorage.getItem('pip_word_list');
+            if (saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    if (parsed.length >= totalCells) return parsed.slice(0, totalCells);
+                    
+                    const extended = [...parsed];
+                    for (let i = parsed.length; i < totalCells; i++) {
+                        extended.push(defaultWords[i % defaultWords.length]);
+                    }
+                    return extended;
+                } catch (e) {
+                    console.error("저장 데이터 로드 실패", e);
+                }
+            }
+            
+            const newList = [];
+            for (let i = 0; i < totalCells; i++) {
+                newList.push(defaultWords[i % defaultWords.length]);
+            }
+            return newList;
+        }
+
+        function saveCurrentWords(container) {
+            const buttons = container.querySelectorAll('button');
+            const wordList = Array.from(buttons).map(btn => btn.getAttribute('data-word'));
+            localStorage.setItem('pip_word_list', JSON.stringify(wordList));
+        }
+
+        function createGrid(container, documentContext) {
+            container.innerHTML = '';
+            
+            container.style.display = 'grid';
+            container.style.gridTemplateRows = `repeat(${currentRows}, minmax(0, 1fr))`;
+            container.style.gridTemplateColumns = `repeat(${currentCols}, minmax(0, 1fr))`;
+            container.style.gap = '5px';
+            container.style.width = '100%';
+            container.style.height = '100%';
+            container.style.boxSizing = 'border-box';
+
+            const totalCells = currentRows * currentCols;
+            const activeWords = getSavedWords(totalCells);
+
+            for (let i = 0; i < totalCells; i++) {
+                const button = documentContext.createElement('button');
+                const word = activeWords[i];
+                button.textContent = word;
+                button.setAttribute('data-word', word);
+                
+                button.style.boxSizing = 'border-box';
+                button.style.padding = '2px'; 
+                button.style.fontWeight = 'bold';
+                
+                const baseSize = (38 / currentCols).toFixed(1);
+                button.style.fontSize = `clamp(10px, ${baseSize}vmin, 22px)`;
+                
+                button.style.cursor = 'grab';
+                button.style.border = '1px solid #555';
+                button.style.borderRadius = '4px';
+                button.style.backgroundColor = '#444';
+                button.style.color = '#fff';
+                
+                button.style.display = 'flex';
+                button.style.alignItems = 'center';
+                button.style.justifyContent = 'center';
+                button.style.overflow = 'hidden';
+                button.style.textOverflow = 'ellipsis';
+                button.style.whiteSpace = 'nowrap';
+
+                button.draggable = true;
+
+                button.addEventListener('dragstart', (e) => {
+                    draggedElement = button;
+                    button.style.opacity = '0.4';
+                    e.dataTransfer.setData('text/plain', word);
+                });
+
+                button.addEventListener('dragend', () => {
+                    draggedElement = null;
+                    button.style.opacity = '1';
+                });
+
+                button.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                });
+
+                button.addEventListener('dragenter', (e) => {
+                    e.preventDefault();
+                    if (button !== draggedElement) {
+                        button.style.backgroundColor = '#555';
+                    }
+                });
+
+                button.addEventListener('dragleave', () => {
+                    if (button !== draggedElement) {
+                        button.style.backgroundColor = '#444';
+                    }
+                });
+
+                button.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    if (draggedElement && draggedElement !== button) {
+                        const targetWord = button.getAttribute('data-word');
+                        const targetText = button.textContent;
+
+                        button.textContent = draggedElement.textContent;
+                        button.setAttribute('data-word', draggedElement.getAttribute('data-word'));
+
+                        draggedElement.textContent = targetText;
+                        draggedElement.setAttribute('data-word', targetWord);
+
+                        button.style.backgroundColor = '#444';
+                        saveCurrentWords(container);
+                    }
+                });
+
+                button.addEventListener('click', (e) => {
+                    if (button.style.opacity === '0.4') return; 
+
+                    const currentWord = button.getAttribute('data-word');
+                    let textToCopy = currentWord;
+                    if (!e.ctrlKey) {
+                        textToCopy = `(${currentWord})`;
+                    }
+                    documentContext.defaultView.navigator.clipboard.writeText(textToCopy)
+                        .then(() => {
+                            button.style.backgroundColor = '#666';
+                            setTimeout(() => button.style.backgroundColor = '#444', 150);
+                        })
+                        .catch(err => console.error('복사 실패:', err));
+                });
+
+                container.appendChild(button);
+            }
+        }
+
+        async function openPIP() {
+            if (!('documentPictureInPicture' in window)) {
+                alert('이 브라우저는 Document Picture-in-Picture API를 지원하지 않습니다.');
+                return;
+            }
+
+            if (pipWindow) {
+                pipWindow.close();
+                return;
+            }
+
+            pipWindow = await window.documentPictureInPicture.requestWindow({
+                width: 800,
+                height: 200,
+            });
+
+            const pipDoc = pipWindow.document;
+            pipDoc.body.style.margin = '0';
+            pipDoc.body.style.padding = '8px';
+            pipDoc.body.style.backgroundColor = '#222';
+            pipDoc.body.style.height = '100vh';
+            pipDoc.body.style.boxSizing = 'border-box';
+            pipDoc.body.style.overflow = 'hidden';
+
+            const gridContainer = pipDoc.createElement('div');
+            gridContainer.id = 'pipGridContainer';
+            gridContainer.style.height = '100%';
+            pipDoc.body.appendChild(gridContainer);
+
+            createGrid(gridContainer, pipDoc);
+
+            pipWindow.addEventListener('pagehide', () => {
+                pipWindow = null;
+            });
+        }
+
+        applyGridBtn.addEventListener('click', () => {
+            currentRows = parseInt(rowsInput.value) || 12;
+            currentCols = parseInt(colsInput.value) || 6;
+
+            if (pipWindow) {
+                const gridContainer = pipWindow.document.getElementById('pipGridContainer');
+                if (gridContainer) {
+                    createGrid(gridContainer, pipWindow.document);
+                }
+            }
+        });
+
+        resetStorageBtn.addEventListener('click', () => {
+            if (confirm("단어 순서를 처음 상태로 초기화할까요?")) {
+                localStorage.removeItem('pip_word_list');
+                if (pipWindow) {
+                    const gridContainer = pipWindow.document.getElementById('pipGridContainer');
+                    if (gridContainer) {
+                        createGrid(gridContainer, pipWindow.document);
+                    }
+                }
+                alert("초기화되었습니다.");
+            }
+        });
+
+        pipBtn.addEventListener('click', openPIP);
+    </script>
+</body>
+</html>
