@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PIP 단어 배열</title>
+
+<style>
+    :root {
+        color-scheme: dark;
+        --bg: #17191d;
+        --panel: #20242a;
+        --button: #30353d;
+        --button-hover: #3b424c;
+        --border: #4a515c;
+    }
+
+    * {
+        box-sizing: border-box;
+    }
+
+    body {
+        margin: 0;
+        padding: 16px;
+        background: var(--bg);
+        color: #e9edf2;
+        font-family: Arial, "Malgun Gothic", sans-serif;
+    }
+
+    h2 {
+        margin: 0 0 14px;
+        font-size: 20px;
+    }
+
+    .controls {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 12px;
+        padding: 12px;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+    }
+
+    .setting-group {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding-right: 12px;
+        border-right: 1px solid #3b414a;
+    }
+
+    .setting-group:last-of-type {
+        border-right: none;
+    }
+
+    label {
+        font-size: 14px;
+        white-space: nowrap;
+    }
+
+    input {
+        width: 55px;
+        padding: 5px 6px;
+        background: #15181c;
+        color: #fff;
+        border: 1px solid var(--border);
+        border-radius: 5px;
+    }
+
+    button {
+        color: #f5f7fa;
+        background: var(--button);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        cursor: pointer;
+    }
+
+    button:hover {
+        background: var(--button-hover);
+    }
+
+    .control-btn {
+        padding: 6px 10px;
+    }
+
+    #pipBtn {
+        padding: 8px 18px;
+        font-size: 15px;
+    }
+
+    .hint {
+        margin: 0;
+        color: #aeb7c2;
+        font-size: 13px;
+        line-height: 1.6;
+    }
+</style>
+</head>
+
+<body>
+
+<h2>PIP 단어 배열</h2>
+
+<div class="controls">
+
+    <!-- 메인 배열 설정 -->
+    <div class="setting-group">
+        <label for="mainColsInput">메인 가로:</label>
+        <input type="number" id="mainColsInput" value="12" min="1" max="40">
+
+        <label for="mainRowsInput">메인 세로:</label>
+        <input type="number" id="mainRowsInput" value="6" min="1" max="30">
+    </div>
+
+    <!-- Numpad 배열 설정 -->
+    <div class="setting-group">
+        <label for="padColsInput">Numpad 가로:</label>
+        <input type="number" id="padColsInput" value="3" min="1" max="20">
+
+        <label for="padRowsInput">Numpad 세로:</label>
+        <input type="number" id="padRowsInput" value="4" min="1" max="30">
+    </div>
+
+    <button class="control-btn" id="applyGridBtn">배열 적용</button>
+    <button class="control-btn" id="resetStorageBtn">순서 초기화</button>
+    <button id="pipBtn">PIP 열기</button>
+
+</div>
+
+<p class="hint">
+    기본 클릭: (단어.) / Ctrl+클릭: 단어 / Alt+클릭: (단어)<br>
+    단어 이동: 버튼을 약 0.5초 이상 누른 뒤 드래그하면 이동 기능이 활성화됩니다.
+</p>
+
+
+<script>
+/* =========================================================
+   기본 단어
+   ========================================================= */
+
+const defaultWords = [
+    "우리집", "사과", "바나나", "호랑이", "컴퓨터", "자동차",
+    "하늘", "바다", "축구", "노래", "책상", "의자",
+    "커피", "노트북", "스마트폰", "자전거", "비행기", "기차",
+    "연필", "지우개", "안경", "시계", "지갑", "가방",
+    "수박", "포도", "오렌지", "딸기", "복숭아", "체리",
+    "강아지", "고양이", "토끼", "다람쥐", "곰", "사자",
+    "태양", "달빛", "별들", "구름", "우산", "장화",
+    "피자", "치킨", "라면", "김밥", "떡볶이", "튀김",
+    "서울", "부산", "제주", "뉴욕", "파리", "런던",
+    "축제", "영화", "음악", "미술", "사진", "거울",
+    "나무", "장미", "튤립", "바람", "바위", "모래",
+    "시작", "끝남", "행복", "사랑", "우정", "희망"
+];
+
+
+/* =========================================================
+   설정
+   ========================================================= */
+
+const STORAGE_KEY = "pip_word_layout_v4";
+
+let mainCols = 12;
+let mainRows = 6;
+
+let padCols = 3;
+let padRows = 4;
+
+let pipWindow = null;
+let draggedElement = null;
+let suppressClick = false;
+
+
+/* =========================================================
+   HTML 요소
+   ========================================================= */
+
+const mainColsInput = document.getElementById("mainColsInput");
+const mainRowsInput = document.getElementById("mainRowsInput");
+
+const padColsInput = document.getElementById("padColsInput");
+const padRowsInput = document.getElementById("padRowsInput");
+
+const applyGridBtn = document.getElementById("applyGridBtn");
+const resetStorageBtn = document.getElementById("resetStorageBtn");
+const pipBtn = document.getElementById("pipBtn");
+
+
+/* =========================================================
+   저장 데이터
+   메인 배열과 Numpad 배열을 각각 독립적으로 저장
+   ========================================================= */
+
+function createDefaultWordList(count, startIndex = 0) {
+    return Array.from(
+        { length: count },
+        (_, index) => defaultWords[(startIndex + index) % defaultWords.length]
+    );
+}
+
+
+function loadLayout() {
+    const mainCount = mainCols * mainRows;
+    const padCount = padCols * padRows;
+
+    const defaultLayout = {
+        main: createDefaultWordList(mainCount, 0),
+        pad: createDefaultWordList(padCount, mainCount)
+    };
+
+    const saved = localStorage.getItem(STORAGE_KEY);
+
+    if (!saved) {
+        return defaultLayout;
+    }
+
+    try {
+        const parsed = JSON.parse(saved);
+
+        // 이전 저장 데이터가 없거나 형식이 다르면 기본값 사용
+        const savedMain = Array.isArray(parsed.main) ? [...parsed.main] : [];
+        const savedPad = Array.isArray(parsed.pad) ? [...parsed.pad] : [];
+
+        while (savedMain.length < mainCount) {
+            savedMain.push(
+                defaultWords[savedMain.length % defaultWords.length]
+            );
+        }
+
+        while (savedPad.length < padCount) {
+            savedPad.push(
+                defaultWords[
+                    (mainCount + savedPad.length) % defaultWords.length
+                ]
+            );
+        }
+
+        return {
+            main: savedMain.slice(0, mainCount),
+            pad: savedPad.slice(0, padCount)
+        };
+
+    } catch (error) {
+        console.error("저장된 배열을 불러오지 못했습니다.", error);
+        return defaultLayout;
+    }
+}
+
+
+function saveLayout(mainGrid, padGrid) {
+
+    const mainWords = Array.from(
+        mainGrid.querySelectorAll("[data-word]")
+    ).map(button => button.dataset.word);
+
+    const padWords = Array.from(
+        padGrid.querySelectorAll("[data-word]")
+    ).map(button => button.dataset.word);
+
+    localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({
+            main: mainWords,
+            pad: padWords
+        })
+    );
+}
+
+
+/* =========================================================
+   복사 기능
+   ========================================================= */
+
+async function copyText(doc, text) {
+
+    try {
+        await doc.defaultView.navigator.clipboard.writeText(text);
+
+    } catch (error) {
+
+        // Clipboard API를 사용할 수 없는 경우의 대체 방식
+        const textarea = doc.createElement("textarea");
+
+        textarea.value = text;
+
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+
+        doc.body.appendChild(textarea);
+
+        textarea.select();
+
+        doc.execCommand("copy");
+
+        textarea.remove();
+    }
+}
+
+
+/* =========================================================
+   버튼 스타일
+   ========================================================= */
+
+function applyButtonStyle(button, gridCols) {
+
+    Object.assign(button.style, {
+
+        minWidth: "0",
+        minHeight: "0",
+
+        /* 버튼 세로/가로 내부 여백 */
+        padding: "2px 4px",
+
+        /* 폰트 굵기 */
+        fontWeight: "500",
+
+        /* 폰트 크기 */
+        fontSize: `clamp(8px, ${Math.max(1.7, 22 / gridCols)}vw, 14px)`,
+
+        border: "1px solid #4a515c",
+        borderRadius: "4px",
+
+        background: "#30353d",
+        color: "#f4f7fa",
+
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
+
+        userSelect: "none",
+
+        /* 평소에는 손모양 표시 안 함 */
+        cursor: "default",
+
+        touchAction: "none"
+    });
+}
+
+
+/* =========================================================
+   단어 버튼 생성
+   ========================================================= */
+
+function createWordButton(doc, word, gridCols, mainGrid, padGrid) {
+
+    const button = doc.createElement("button");
+
+    button.type = "button";
+
+    button.textContent = word;
+    button.dataset.word = word;
+
+    button.draggable = false;
+
+    applyButtonStyle(button, gridCols);
+
+
+    /* -----------------------------------------------------
+       길게 눌러야 이동 기능 활성화
+       ----------------------------------------------------- */
+
+    let holdTimer = null;
+    let dragReady = false;
+    let pointerDown = false;
+
+    let startX = 0;
+    let startY = 0;
+
+
+    function clearHoldTimer() {
+
+        if (holdTimer) {
+            clearTimeout(holdTimer);
+            holdTimer = null;
+        }
+    }
+
+
+    button.addEventListener("pointerdown", event => {
+
+        pointerDown = true;
+
+        dragReady = false;
+
+        startX = event.clientX;
+        startY = event.clientY;
+
+
+        /* 0.5초 이상 눌러야 이동 기능 활성화 */
+
+        holdTimer = setTimeout(() => {
+
+            if (!pointerDown) return;
+
+            dragReady = true;
+
+            button.draggable = true;
+
+            /* 이동 기능이 활성화된 경우에만 손모양 표시 */
+
+            button.style.cursor = "grab";
+
+            button.style.outline = "1px solid #8fa7c4";
+            button.style.outlineOffset = "-1px";
+
+        }, 500);
+    });
+
+
+    button.addEventListener("pointermove", event => {
+
+        const movedDistance = Math.hypot(
+            event.clientX - startX,
+            event.clientY - startY
+        );
+
+
+        /* 일반 클릭 중 조금 움직인 경우 드래그 기능이 활성화되지 않도록 처리 */
+
+        if (!dragReady && movedDistance > 8) {
+
+            clearHoldTimer();
+
+            pointerDown = false;
+        }
+    });
+
+
+    ["pointerup", "pointercancel", "pointerleave"].forEach(type => {
+
+        button.addEventListener(type, () => {
+
+            pointerDown = false;
+
+            clearHoldTimer();
+
+
+            if (!dragReady) {
+
+                button.draggable = false;
+
+                button.style.cursor = "default";
+
+                button.style.outline = "none";
+            }
+        });
+    });
+
+
+    /* -----------------------------------------------------
+       실제 드래그 시작
+       ----------------------------------------------------- */
+
+    button.addEventListener("dragstart", event => {
+
+        if (!dragReady) {
+
+            event.preventDefault();
+
+            return;
+        }
+
+
+        draggedElement = button;
+
+        suppressClick = true;
+
+        button.style.opacity = "0.45";
+
+        button.style.cursor = "grabbing";
+
+        event.dataTransfer.effectAllowed = "move";
+
+        event.dataTransfer.setData(
+            "text/plain",
+            button.dataset.word
+        );
+    });
+
+
+    button.addEventListener("dragend", () => {
+
+        draggedElement = null;
+
+        dragReady = false;
+
+        button.draggable = false;
+
+        button.style.opacity = "1";
+
+        button.style.cursor = "default";
+
+        button.style.outline = "none";
+
+
+        /* 드래그가 끝난 직후 클릭 이벤트 방지 */
+
+        setTimeout(() => {
+            suppressClick = false;
+        }, 80);
+    });
+
+
+    /* -----------------------------------------------------
+       드래그 대상 위로 이동
+       ----------------------------------------------------- */
+
+    button.addEventListener("dragover", event => {
+
+        if (
+            draggedElement &&
+            draggedElement !== button
+        ) {
+
+            event.preventDefault();
+
+            event.dataTransfer.dropEffect = "move";
+        }
+    });
+
+
+    button.addEventListener("dragenter", event => {
+
+        event.preventDefault();
+
+
+        if (
+            draggedElement &&
+            draggedElement !== button
+        ) {
+
+            button.style.background = "#414955";
+        }
+    });
+
+
+    button.addEventListener("dragleave", () => {
+
+        button.style.background = "#30353d";
+    });
+
+
+    /* -----------------------------------------------------
+       단어 위치 교환
+       메인 ↔ 메인
+       Numpad ↔ Numpad
+       메인 ↔ Numpad 모두 가능
+       ----------------------------------------------------- */
+
+    button.addEventListener("drop", event => {
+
+        event.preventDefault();
+
+
+        if (
+            !draggedElement ||
+            draggedElement === button
+        ) {
+            return;
+        }
+
+
+        const targetWord = button.dataset.word;
+        const targetText = button.textContent;
+
+
+        button.dataset.word = draggedElement.dataset.word;
+        button.textContent = draggedElement.textContent;
+
+
+        draggedElement.dataset.word = targetWord;
+        draggedElement.textContent = targetText;
+
+
+        button.style.background = "#30353d";
+
+
+        saveLayout(mainGrid, padGrid);
+    });
+
+
+    /* -----------------------------------------------------
+       클릭 복사
+       ----------------------------------------------------- */
+
+    button.addEventListener("click", async event => {
+
+        if (
+            suppressClick ||
+            dragReady
+        ) {
+            return;
+        }
+
+
+        const currentWord = button.dataset.word;
+
+        let textToCopy;
+
+
+        /*
+           기본 클릭
+           단어 → (단어.)
+
+           Ctrl + 클릭
+           단어 → 단어
+
+           Alt + 클릭
+           단어 → (단어)
+        */
+
+        if (event.ctrlKey) {
+
+            textToCopy = currentWord;
+
+        } else if (event.altKey) {
+
+            textToCopy = `(${currentWord})`;
+
+        } else {
+
+            textToCopy = `(${currentWord}.)`;
+        }
+
+
+        await copyText(doc, textToCopy);
+
+
+        /* 복사 완료 표시 */
+
+        button.style.background = "#5a6a7c";
+
+
+        setTimeout(() => {
+
+            button.style.background = "#30353d";
+
+        }, 140);
+    });
+
+
+    return button;
+}
+
+
+/* =========================================================
+   PIP 내부 배열 생성
+   ========================================================= */
+
+function createGrid(root, doc) {
+
+    root.innerHTML = "";
+
+
+    const wrapper = doc.createElement("div");
+
+
+    Object.assign(wrapper.style, {
+
+        width: "100%",
+        height: "100%",
+
+        display: "flex",
+
+        alignItems: "stretch",
+
+        /*
+           메인 배열과 Numpad 사이 간격
+        */
+
+        gap: "14px",
+
+        padding: "4px",
+
+        boxSizing: "border-box",
+
+        background: "#17191d"
+    });
+
+
+    /* -----------------------------------------------------
+       메인 배열
+       ----------------------------------------------------- */
+
+    const mainGrid = doc.createElement("div");
+
+    mainGrid.id = "mainWordGrid";
+
+
+    Object.assign(mainGrid.style, {
+
+        flex: "1 1 auto",
+
+        minWidth: "0",
+
+        display: "grid",
+
+        gridTemplateColumns:
+            `repeat(${mainCols}, minmax(0, 1fr))`,
+
+        gridTemplateRows:
+            `repeat(${mainRows}, minmax(0, 1fr))`,
+
+        gap: "3px"
+    });
+
+
+    /* -----------------------------------------------------
+       Numpad 배열
+       ----------------------------------------------------- */
+
+    const padGrid = doc.createElement("div");
+
+    padGrid.id = "padWordGrid";
+
+
+    Object.assign(padGrid.style, {
+
+        /*
+           Numpad 너비
+           숫자 키패드처럼 메인 배열보다 작게 유지
+        */
+
+        flex: "0 0 18%",
+
+        minWidth: "90px",
+
+        maxWidth: "220px",
+
+
+        /*
+           메인 배열과 구분되는 간격
+        */
+
+        paddingLeft: "10px",
+
+        borderLeft: "8px solid #252a31",
+
+
+        display: "grid",
+
+        gridTemplateColumns:
+            `repeat(${padCols}, minmax(0, 1fr))`,
+
+        gridTemplateRows:
+            `repeat(${padRows}, minmax(0, 1fr))`,
+
+        gap: "3px"
+    });
+
+
+    /* -----------------------------------------------------
+       저장된 단어 불러오기
+       ----------------------------------------------------- */
+
+    const layout = loadLayout();
+
+
+    /* 메인 버튼 생성 */
+
+    layout.main.forEach(word => {
+
+        mainGrid.appendChild(
+            createWordButton(
+                doc,
+                word,
+                mainCols,
+                mainGrid,
+                padGrid
+            )
+        );
+    });
+
+
+    /* Numpad 버튼 생성 */
+
+    layout.pad.forEach(word => {
+
+        padGrid.appendChild(
+            createWordButton(
+                doc,
+                word,
+                padCols,
+                mainGrid,
+                padGrid
+            )
+        );
+    });
+
+
+    wrapper.append(
+        mainGrid,
+        padGrid
+    );
+
+
+    root.appendChild(wrapper);
+}
+
+
+/* =========================================================
+   PIP 열기
+   ========================================================= */
+
+async function openPIP() {
+
+    if (!("documentPictureInPicture" in window)) {
+
+        alert(
+            "이 브라우저는 Document Picture-in-Picture API를 지원하지 않습니다."
+        );
+
+        return;
+    }
+
+
+    /* 이미 열려 있으면 닫기 */
+
+    if (pipWindow) {
+
+        pipWindow.close();
+
+        return;
+    }
+
+
+    /*
+       PIP 창 기본 크기
+
+       height 값을 바꾸면
+       처음 열릴 때의 세로 크기가 변경됩니다.
+    */
+
+    pipWindow =
+        await window.documentPictureInPicture.requestWindow({
+
+            width: 920,
+
+            height: 200
+        });
+
+
+    const pipDoc = pipWindow.document;
+
+
+    pipDoc.documentElement.style.height = "100%";
+
+
+    Object.assign(pipDoc.body.style, {
+
+        margin: "0",
+
+        width: "100vw",
+
+        height: "100vh",
+
+        overflow: "hidden",
+
+        background: "#17191d"
+    });
+
+
+    const root = pipDoc.createElement("div");
+
+    root.id = "pipGridContainer";
+
+    root.style.width = "100%";
+
+    root.style.height = "100%";
+
+
+    pipDoc.body.appendChild(root);
+
+
+    createGrid(root, pipDoc);
+
+
+    pipWindow.addEventListener("pagehide", () => {
+
+        pipWindow = null;
+    });
+}
+
+
+/* =========================================================
+   배열 적용
+   ========================================================= */
+
+applyGridBtn.addEventListener("click", () => {
+
+    /* 메인 배열 */
+
+    mainCols = Math.max(
+        1,
+        parseInt(mainColsInput.value) || 12
+    );
+
+
+    mainRows = Math.max(
+        1,
+        parseInt(mainRowsInput.value) || 6
+    );
+
+
+    /* Numpad 배열 */
+
+    padCols = Math.max(
+        1,
+        parseInt(padColsInput.value) || 3
+    );
+
+
+    padRows = Math.max(
+        1,
+        parseInt(padRowsInput.value) || 4
+    );
+
+
+    /* PIP가 열려 있으면 즉시 다시 생성 */
+
+    if (pipWindow) {
+
+        const root =
+            pipWindow.document.getElementById(
+                "pipGridContainer"
+            );
+
+
+        if (root) {
+
+            createGrid(
+                root,
+                pipWindow.document
+            );
+        }
+    }
+});
+
+
+/* =========================================================
+   단어 순서 초기화
+   ========================================================= */
+
+resetStorageBtn.addEventListener("click", () => {
+
+    if (
+        !confirm(
+            "메인 배열과 Numpad 배열의 단어 순서를 초기 상태로 되돌리겠습니까?"
+        )
+    ) {
+        return;
+    }
+
+
+    localStorage.removeItem(STORAGE_KEY);
+
+
+    if (pipWindow) {
+
+        const root =
+            pipWindow.document.getElementById(
+                "pipGridContainer"
+            );
+
+
+        if (root) {
+
+            createGrid(
+                root,
+                pipWindow.document
+            );
+        }
+    }
+});
+
+
+/* =========================================================
+   PIP 버튼
+   ========================================================= */
+
+pipBtn.addEventListener(
+    "click",
+    openPIP
+);
+
+</script>
+
+</body>
+</html>
