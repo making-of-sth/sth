@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+<title>숫자 읽기 변환기</title>
+
+<style>
+    * {
+        box-sizing: border-box;
+    }
+
+    body {
+        margin: 0;
+        padding: 16px;
+        background: #f3f4f6;
+        color: #111827;
+        font-family:
+            -apple-system,
+            BlinkMacSystemFont,
+            "Segoe UI",
+            "Apple SD Gothic Neo",
+            "Noto Sans KR",
+            sans-serif;
+    }
+
+    .container {
+        max-width: 760px;
+        margin: 0 auto;
+    }
+
+    h1 {
+        margin: 0 0 6px;
+        font-size: 24px;
+    }
+
+    .description {
+        margin-bottom: 16px;
+        color: #6b7280;
+        font-size: 14px;
+        line-height: 1.5;
+    }
+
+    .box {
+        background: white;
+        border-radius: 14px;
+        padding: 14px;
+        margin-bottom: 14px;
+        box-shadow: 0 2px 8px rgba(0,0,0,.06);
+    }
+
+    label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 700;
+        font-size: 15px;
+    }
+
+    textarea {
+        width: 100%;
+        min-height: 110px;
+        resize: vertical;
+        border: 1px solid #d1d5db;
+        border-radius: 10px;
+        padding: 13px;
+        font-size: 18px;
+        line-height: 1.5;
+        outline: none;
+        font-family: inherit;
+    }
+
+    textarea:focus {
+        border-color: #2563eb;
+        box-shadow: 0 0 0 3px rgba(37,99,235,.12);
+    }
+
+    .result {
+        width: 100%;
+        min-height: 100px;
+        resize: vertical;
+        cursor: pointer;
+        background: #f9fafb;
+    }
+
+    .result:active {
+        background: #eff6ff;
+    }
+
+    button {
+        border: 0;
+        border-radius: 10px;
+        padding: 13px 17px;
+        font-size: 16px;
+        font-weight: 700;
+        cursor: pointer;
+        touch-action: manipulation;
+    }
+
+    .primary {
+        background: #2563eb;
+        color: white;
+        width: 100%;
+    }
+
+    .primary:active {
+        background: #1d4ed8;
+    }
+
+    .pip {
+        background: #111827;
+        color: white;
+        width: 100%;
+        margin-top: 10px;
+    }
+
+    .clear {
+        background: #e5e7eb;
+        color: #111827;
+        margin-top: 10px;
+        width: 100%;
+    }
+
+    .copy-hint {
+        margin-top: 7px;
+        color: #6b7280;
+        font-size: 12px;
+    }
+
+    .status {
+        position: fixed;
+        left: 50%;
+        bottom: 24px;
+        transform: translateX(-50%);
+        background: rgba(17,24,39,.92);
+        color: white;
+        padding: 10px 16px;
+        border-radius: 999px;
+        font-size: 14px;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity .2s;
+        z-index: 9999;
+        white-space: nowrap;
+    }
+
+    .status.show {
+        opacity: 1;
+    }
+
+    .example {
+        color: #374151;
+        font-size: 14px;
+        line-height: 1.7;
+    }
+
+    .example code {
+        background: #f3f4f6;
+        padding: 2px 5px;
+        border-radius: 5px;
+    }
+
+    /* PiP 안에서 사용할 미니 UI */
+    #pipWindow {
+        padding: 12px;
+        font-family:
+            -apple-system,
+            BlinkMacSystemFont,
+            "Apple SD Gothic Neo",
+            "Noto Sans KR",
+            sans-serif;
+        background: #f3f4f6;
+        color: #111827;
+        height: 100%;
+    }
+
+    #pipWindow h2 {
+        font-size: 17px;
+        margin: 0 0 8px;
+    }
+
+    #pipInput {
+        width: 100%;
+        height: 70px;
+        resize: none;
+        border: 1px solid #ccc;
+        border-radius: 8px;
+        padding: 8px;
+        font-size: 16px;
+        font-family: inherit;
+    }
+
+    #pipButton {
+        width: 100%;
+        margin-top: 8px;
+        background: #2563eb;
+        color: white;
+    }
+
+    .pip-result {
+        width: 100%;
+        height: 60px;
+        margin-top: 8px;
+        resize: none;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        padding: 8px;
+        font-size: 14px;
+        font-family: inherit;
+        background: white;
+    }
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <h1>숫자 읽기 변환기</h1>
+
+    <div class="description">
+        숫자가 들어간 문장을 입력하면 숫자만 두 가지 방식으로 읽어줍니다.
+    </div>
+
+    <div class="box">
+
+        <label for="inputText">입력</label>
+
+        <textarea
+            id="inputText"
+            placeholder="예: 강남대로123번길"
+            autofocus
+        ></textarea>
+
+        <button class="primary" onclick="convertText()">
+            변환하기
+        </button>
+
+        <button class="clear" onclick="clearAll()">
+            지우기
+        </button>
+
+        <button class="pip" onclick="openPiP()">
+            📌 PiP 모드로 띄우기
+        </button>
+
+    </div>
+
+
+    <div class="box">
+
+        <label>① 숫자 하나씩 읽기</label>
+
+        <textarea
+            id="digitResult"
+            class="result"
+            readonly
+            onclick="copyResult('digitResult')"
+            ontouchend="copyResult('digitResult')"
+        ></textarea>
+
+        <div class="copy-hint">
+            👆 결과 창을 클릭/터치하면 바로 복사됩니다.
+        </div>
+
+    </div>
+
+
+    <div class="box">
+
+        <label>② 숫자를 수로 읽기</label>
+
+        <textarea
+            id="numberResult"
+            class="result"
+            readonly
+            onclick="copyResult('numberResult')"
+            ontouchend="copyResult('numberResult')"
+        ></textarea>
+
+        <div class="copy-hint">
+            👆 결과 창을 클릭/터치하면 바로 복사됩니다.
+        </div>
+
+    </div>
+
+
+    <div class="box example">
+        <strong>예시</strong><br>
+        입력: <code>강남대로123번길</code><br><br>
+
+        ① <code>강남대로[123/일이삼]번길</code><br>
+        ② <code>강남대로[123/백이십삼]번길</code>
+    </div>
+
+</div>
+
+
+<div id="status" class="status"></div>
+
+
+<script>
+
+/* =========================================================
+   한자어 수사
+   ========================================================= */
+
+const digits = [
+    "영",
+    "일",
+    "이",
+    "삼",
+    "사",
+    "오",
+    "육",
+    "칠",
+    "팔",
+    "구"
+];
+
+const smallUnits = [
+    "",
+    "십",
+    "백",
+    "천"
+];
+
+const bigUnits = [
+    "",
+    "만",
+    "억",
+    "조",
+    "경",
+    "해",
+    "자",
+    "양",
+    "구",
+    "간",
+    "정",
+    "재",
+    "극"
+];
+
+
+/* =========================================================
+   숫자를 한 자리씩 읽기
+   예: 123 → 일이삼
+   ========================================================= */
+
+function readDigitByDigit(str) {
+
+    return str
+        .split("")
+        .map(char => digits[Number(char)])
+        .join("");
+
+}
+
+
+/* =========================================================
+   네 자리 단위 변환
+   예: 1234 → 천이백삼십사
+   ========================================================= */
+
+function convertFourDigits(num) {
+
+    let result = "";
+
+    const units = ["천", "백", "십", ""];
+
+    const chars = String(num).padStart(4, "0");
+
+    for (let i = 0; i < 4; i++) {
+
+        const n = Number(chars[i]);
+
+        if (n === 0) continue;
+
+        /*
+         * 한국어 수 읽기에서는
+         * 1십 → 십
+         * 1백 → 백
+         * 1천 → 천
+         */
+        if (n === 1 && i < 3) {
+            result += units[i];
+        } else {
+            result += digits[n] + units[i];
+        }
+    }
+
+    return result;
+}
+
+
+/* =========================================================
+   큰 숫자를 한자어 수사로 읽기
+   ========================================================= */
+
+function readNumber(str) {
+
+    /*
+     * 앞쪽 0 제거
+     */
+    str = str.replace(/^0+(?=\d)/, "");
+
+    if (str === "0") {
+        return "영";
+    }
+
+    /*
+     * 너무 긴 숫자가 들어왔을 경우에도
+     * 가능한 범위에서 처리
+     */
+    let groups = [];
+
+    while (str.length > 0) {
+
+        let start = Math.max(0, str.length - 4);
+
+        groups.unshift(str.slice(start));
+
+        str = str.slice(0, start);
+    }
+
+    let result = "";
+
+    for (let i = 0; i < groups.length; i++) {
+
+        const group = Number(groups[i]);
+
+        if (group === 0) continue;
+
+        const groupText = convertFourDigits(group);
+
+        const unitIndex = groups.length - 1 - i;
+
+        result += groupText;
+
+        if (unitIndex > 0) {
+            result += bigUnits[unitIndex] || "";
+        }
+    }
+
+    return result || "영";
+}
+
+
+/* =========================================================
+   입력 문장 변환
+   ========================================================= */
+
+function convertText() {
+
+    const input = document.getElementById("inputText").value;
+
+    if (!input) {
+
+        document.getElementById("digitResult").value = "";
+        document.getElementById("numberResult").value = "";
+
+        return;
+    }
+
+
+    /*
+     * 숫자 덩어리를 찾아서 변환합니다.
+     *
+     * 예:
+     * 강남대로123번길
+     *
+     * → 강남대로[123/일이삼]번길
+     *
+     * → 강남대로[123/백이십삼]번길
+     */
+
+    const digitText = input.replace(
+        /\d+/g,
+        match => "[" + match + "/" + readDigitByDigit(match) + "]"
+    );
+
+
+    const numberText = input.replace(
+        /\d+/g,
+        match => "[" + match + "/" + readNumber(match) + "]"
+    );
+
+
+    document.getElementById("digitResult").value = digitText;
+
+    document.getElementById("numberResult").value = numberText;
+}
+
+
+/* =========================================================
+   결과 클릭 → 즉시 복사
+   ========================================================= */
+
+async function copyResult(id) {
+
+    const element = document.getElementById(id);
+
+    const text = element.value;
+
+    if (!text) return;
+
+
+    try {
+
+        await navigator.clipboard.writeText(text);
+
+        showStatus("복사되었습니다.");
+
+    } catch (error) {
+
+        /*
+         * 구형 모바일 브라우저 대응
+         */
+        element.focus();
+        element.select();
+
+        try {
+            document.execCommand("copy");
+            showStatus("복사되었습니다.");
+        } catch (e) {
+            showStatus("복사에 실패했습니다.");
+        }
+
+    }
+}
+
+
+/* =========================================================
+   상태 메시지
+   ========================================================= */
+
+let statusTimer;
+
+function showStatus(message) {
+
+    const status = document.getElementById("status");
+
+    status.textContent = message;
+
+    status.classList.add("show");
+
+    clearTimeout(statusTimer);
+
+    statusTimer = setTimeout(() => {
+        status.classList.remove("show");
+    }, 1200);
+}
+
+
+/* =========================================================
+   전체 지우기
+   ========================================================= */
+
+function clearAll() {
+
+    document.getElementById("inputText").value = "";
+
+    document.getElementById("digitResult").value = "";
+
+    document.getElementById("numberResult").value = "";
+
+    document.getElementById("inputText").focus();
+}
+
+
+/* =========================================================
+   입력하는 즉시 변환
+   ========================================================= */
+
+document.getElementById("inputText").addEventListener(
+    "input",
+    convertText
+);
+
+
+/* =========================================================
+   Picture-in-Picture
+   ========================================================= */
+
+async function openPiP() {
+
+    /*
+     * Document Picture-in-Picture API 지원 여부 확인
+     */
+
+    if ("documentPictureInPicture" in window) {
+
+        try {
+
+            const pipWindow =
+                await window.documentPictureInPicture.requestWindow({
+                    width: 380,
+                    height: 420
+                });
+
+
+            /*
+             * PiP 창 기본 스타일
+             */
+
+            const style = document.createElement("style");
+
+            style.textContent = `
+                * {
+                    box-sizing: border-box;
+                }
+
+                body {
+                    margin: 0;
+                    padding: 12px;
+                    background: #f3f4f6;
+                    font-family:
+                        -apple-system,
+                        BlinkMacSystemFont,
+                        "Apple SD Gothic Neo",
+                        "Noto Sans KR",
+                        sans-serif;
+                }
+
+                h2 {
+                    margin: 0 0 8px;
+                    font-size: 17px;
+                }
+
+                textarea {
+                    width: 100%;
+                    border: 1px solid #d1d5db;
+                    border-radius: 8px;
+                    padding: 9px;
+                    font-size: 15px;
+                    font-family: inherit;
+                    resize: vertical;
+                }
+
+                #pipInput {
+                    height: 65px;
+                }
+
+                button {
+                    width: 100%;
+                    margin-top: 7px;
+                    padding: 10px;
+                    border: 0;
+                    border-radius: 8px;
+                    background: #2563eb;
+                    color: white;
+                    font-weight: 700;
+                    font-size: 14px;
+                }
+
+                .result {
+                    margin-top: 7px;
+                    height: 70px;
+                    background: white;
+                }
+
+                .hint {
+                    font-size: 11px;
+                    color: #6b7280;
+                    margin-top: 4px;
+                }
+            `;
+
+            pipWindow.document.head.appendChild(style);
+
+
+            const body = pipWindow.document.body;
+
+            body.innerHTML = `
+                <h2>숫자 읽기 변환기</h2>
+
+                <textarea
+                    id="pipInput"
+                    placeholder="강남대로123번길"
+                ></textarea>
+
+                <button id="pipConvert">
+                    변환
+                </button>
+
+                <textarea
+                    id="pipDigitResult"
+                    class="result"
+                    readonly
+                    placeholder="① 일이삼 방식"
+                ></textarea>
+
+                <textarea
+                    id="pipNumberResult"
+                    class="result"
+                    readonly
+                    placeholder="② 백이십삼 방식"
+                ></textarea>
+
+                <div class="hint">
+                    결과를 누르면 바로 복사됩니다.
+                </div>
+            `;
+
+
+            const pipInput =
+                pipWindow.document.getElementById("pipInput");
+
+            const pipDigitResult =
+                pipWindow.document.getElementById("pipDigitResult");
+
+            const pipNumberResult =
+                pipWindow.document.getElementById("pipNumberResult");
+
+            const pipConvert =
+                pipWindow.document.getElementById("pipConvert");
+
+
+            function pipConvertText() {
+
+                const text = pipInput.value;
+
+                pipDigitResult.value = text.replace(
+                    /\d+/g,
+                    match =>
+                        "[" +
+                        match +
+                        "/" +
+                        readDigitByDigit(match) +
+                        "]"
+                );
+
+
+                pipNumberResult.value = text.replace(
+                    /\d+/g,
+                    match =>
+                        "[" +
+                        match +
+                        "/" +
+                        readNumber(match) +
+                        "]"
+                );
+            }
+
+
+            pipConvert.addEventListener(
+                "click",
+                pipConvertText
+            );
+
+
+            pipInput.addEventListener(
+                "input",
+                pipConvertText
+            );
+
+
+            async function pipCopy(element) {
+
+                const text = element.value;
+
+                if (!text) return;
+
+                try {
+
+                    await pipWindow.navigator.clipboard.writeText(text);
+
+                    element.style.background = "#dcfce7";
+
+                    setTimeout(() => {
+                        element.style.background = "white";
+                    }, 500);
+
+                } catch (e) {
+
+                    element.focus();
+                    element.select();
+
+                    try {
+                        pipWindow.document.execCommand("copy");
+                    } catch (err) {}
+
+                }
+            }
+
+
+            pipDigitResult.addEventListener(
+                "click",
+                () => pipCopy(pipDigitResult)
+            );
+
+            pipNumberResult.addEventListener(
+                "click",
+                () => pipCopy(pipNumberResult)
+            );
+
+
+            pipInput.focus();
+
+
+        } catch (error) {
+
+            showStatus("PiP 창을 열 수 없습니다.");
+
+        }
+
+    } else {
+
+        /*
+         * Document PiP를 지원하지 않는 브라우저용 안내
+         */
+
+        showStatus(
+            "이 브라우저는 PiP 기능을 지원하지 않습니다."
+        );
+
+    }
+}
+
+
+/* =========================================================
+   Enter 처리
+   ========================================================= */
+
+document.getElementById("inputText").addEventListener(
+    "keydown",
+    function(event) {
+
+        /*
+         * 모바일에서는 Enter가 줄바꿈이므로
+         * 변환은 input 이벤트에서 이미 처리됩니다.
+         */
+
+    }
+);
+
+</script>
+
+</body>
+</html>
