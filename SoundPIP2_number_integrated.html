@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PIP 단어 배열</title>
+<style>
+:root{color-scheme:dark;--bg:#17191d;--panel:#20242a;--button:#30353d;--button-hover:#3b424c;--border:#4a515c}
+*{box-sizing:border-box}
+body{margin:0;padding:16px;background:var(--bg);color:#e9edf2;font-family:Arial,"Malgun Gothic",sans-serif}
+h2{margin:0 0 14px;font-size:20px}
+.controls{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:12px;padding:12px;background:var(--panel);border:1px solid var(--border);border-radius:8px}
+.setting-group{display:flex;align-items:center;gap:6px;padding-right:12px;border-right:1px solid #3b414a}
+.setting-group:last-of-type{border-right:none}
+label{font-size:14px;white-space:nowrap}
+input{width:55px;padding:5px 6px;background:#15181c;color:#fff;border:1px solid var(--border);border-radius:5px}
+button{color:#f5f7fa;background:var(--button);border:1px solid var(--border);border-radius:6px;cursor:pointer}
+button:hover{background:var(--button-hover)}
+.control-btn{padding:6px 10px}
+#pipBtn{padding:8px 18px;font-size:15px}
+.hint{margin:0;color:#aeb7c2;font-size:13px;line-height:1.6}
+.number-panel{width:100%;margin:0 0 12px;padding:8px;background:var(--panel);border:1px solid var(--border);border-radius:8px}
+.number-row{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;width:100%}
+.number-item{min-width:0;display:flex;flex-direction:column;gap:3px}
+.number-item label{font-size:11px;color:#bfc7d1;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.number-item input,.number-result{width:100%;height:32px;box-sizing:border-box;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:#15181c;color:#fff;font:11px Arial,"Malgun Gothic",sans-serif;line-height:1.2}
+.number-item input{outline:none}
+.number-item input:focus{border-color:#7587a0;box-shadow:0 0 0 2px rgba(117,135,160,.15)}
+.number-result{background:#1b1f24;cursor:pointer;white-space:pre-wrap;word-break:break-all;overflow-y:auto;display:flex;align-items:center;justify-content:flex-start;text-align:left;position:relative}
+.number-result:hover{background:#242a31}
+.number-result::after{content:"복사";position:absolute;right:4px;bottom:1px;font-size:8px;color:#7f8994}
+@media(max-width:700px){.number-row{grid-template-columns:1.4fr repeat(4,1fr)}}
+</style>
+</head>
+<body>
+<div class="number-panel" id="mainNumberPanel">
+<div class="number-row">
+<div class="number-item"><label for="numberInput">입력창</label><input type="text" id="numberInput" placeholder="예: 삼성동 16-1, fm 91.9..."></div>
+<div class="number-item"><label>변환 결과 텍스트창1</label><div class="number-result" id="numberOut1"></div></div>
+<div class="number-item"><label>변환 결과 텍스트창2</label><div class="number-result" id="numberOut2"></div></div>
+<div class="number-item"><label>변환 결과 텍스트창3</label><div class="number-result" id="numberOut3"></div></div>
+<div class="number-item"><label>변환 결과 텍스트창4</label><div class="number-result" id="numberOut4"></div></div>
+</div></div>
+<h2>PIP 단어 배열</h2>
+<div class="controls">
+<div class="setting-group">
+<label for="mainColsInput">메인 가로:</label><input type="number" id="mainColsInput" value="12" min="1" max="40">
+<label for="mainRowsInput">메인 세로:</label><input type="number" id="mainRowsInput" value="10" min="1" max="30">
+</div>
+<div class="setting-group">
+<label for="padColsInput">Numpad 1 가로:</label><input type="number" id="padColsInput" value="10" min="1" max="30">
+<label for="padRowsInput">Numpad 1 세로:</label><input type="number" id="padRowsInput" value="10" min="1" max="30">
+</div>
+<div class="setting-group">
+<label for="pad2ColsInput">Numpad 2 가로:</label><input type="number" id="pad2ColsInput" value="10" min="1" max="30">
+<label for="pad2RowsInput">Numpad 2 세로:</label><input type="number" id="pad2RowsInput" value="10" min="1" max="30">
+</div>
+<button class="control-btn" id="applyGridBtn">배열 적용</button>
+<button class="control-btn" id="resetStorageBtn">순서 초기화</button>
+<button id="pipBtn">PIP 열기</button>
+</div>
+<p class="hint">기본 클릭: (단어.) / Ctrl+클릭: 단어 / Alt+클릭: (단어)<br>/로 시작하는 단어는 클릭 방식과 관계없이 그대로 복사됩니다.<br>단어 이동: 버튼을 약 0.5초 이상 누른 뒤 드래그하면 이동 기능이 활성화됩니다.</p>
+<script>
+const mainDefaultWords=[
+"우리집","사과","바나나","호랑이","컴퓨터","자동차","하늘","바다","축구","노래",
+"책상","의자","커피","노트북","스마트폰","자전거","비행기","기차","연필","지우개",
+"안경","시계","지갑","가방","수박","포도","오렌지","딸기","복숭아","체리",
+"강아지","고양이","토끼","다람쥐","곰","사자","태양","달빛","별들","구름",
+"우산","장화","피자","치킨","라면","김밥","떡볶이","튀김","서울","부산",
+"제주","뉴욕","파리","런던","축제","영화","음악","미술","사진","거울",
+"나무","장미","튤립","바람","바위","모래","시작","끝남","행복","사랑",
+"우정","희망"
+];
+const padDefaultWords=[
+"N1-001","N1-002","N1-003","N1-004","N1-005","N1-006","N1-007","N1-008","N1-009","N1-010",
+"N1-011","N1-012","N1-013","N1-014","N1-015","N1-016","N1-017","N1-018","N1-019","N1-020",
+"N1-021","N1-022","N1-023","N1-024","N1-025","N1-026","N1-027","N1-028","N1-029","N1-030",
+"N1-031","N1-032","N1-033","N1-034","N1-035","N1-036","N1-037","N1-038","N1-039","N1-040",
+"N1-041","N1-042","N1-043","N1-044","N1-045","N1-046","N1-047","N1-048","N1-049","N1-050",
+"N1-051","N1-052","N1-053","N1-054","N1-055","N1-056","N1-057","N1-058","N1-059","N1-060",
+"N1-061","N1-062","N1-063","N1-064","N1-065","N1-066","N1-067","N1-068","N1-069","N1-070",
+"N1-071","N1-072","N1-073","N1-074","N1-075","N1-076","N1-077","N1-078","N1-079","N1-080",
+"N1-081","N1-082","N1-083","N1-084","N1-085","N1-086","N1-087","N1-088","N1-089","N1-090",
+"N1-091","N1-092","N1-093","N1-094","N1-095","N1-096","N1-097","N1-098","N1-099","N1-100"
+];
+const pad2DefaultWords=[
+"N2-001","N2-002","N2-003","N2-004","N2-005","N2-006","N2-007","N2-008","N2-009","N2-010",
+"N2-011","N2-012","N2-013","N2-014","N2-015","N2-016","N2-017","N2-018","N2-019","N2-020",
+"N2-021","N2-022","N2-023","N2-024","N2-025","N2-026","N2-027","N2-028","N2-029","N2-030",
+"N2-031","N2-032","N2-033","N2-034","N2-035","N2-036","N2-037","N2-038","N2-039","N2-040",
+"N2-041","N2-042","N2-043","N2-044","N2-045","N2-046","N2-047","N2-048","N2-049","N2-050",
+"N2-051","N2-052","N2-053","N2-054","N2-055","N2-056","N2-057","N2-058","N2-059","N2-060",
+"N2-061","N2-062","N2-063","N2-064","N2-065","N2-066","N2-067","N2-068","N2-069","N2-070",
+"N2-071","N2-072","N2-073","N2-074","N2-075","N2-076","N2-077","N2-078","N2-079","N2-080",
+"N2-081","N2-082","N2-083","N2-084","N2-085","N2-086","N2-087","N2-088","N2-089","N2-090",
+"N2-091","N2-092","N2-093","N2-094","N2-095","N2-096","N2-097","N2-098","N2-099","N2-100"
+];
+
+const STORAGE_KEY="pip_word_layout_v10";
+let mainCols=12,mainRows=10,padCols=10,padRows=10,pad2Cols=10,pad2Rows=10;
+let pipWindow=null,draggedElement=null,suppressClick=false;
+
+const mainColsInput=document.getElementById("mainColsInput");
+const mainRowsInput=document.getElementById("mainRowsInput");
+const padColsInput=document.getElementById("padColsInput");
+const padRowsInput=document.getElementById("padRowsInput");
+const pad2ColsInput=document.getElementById("pad2ColsInput");
+const pad2RowsInput=document.getElementById("pad2RowsInput");
+const applyGridBtn=document.getElementById("applyGridBtn");
+const resetStorageBtn=document.getElementById("resetStorageBtn");
+const pipBtn=document.getElementById("pipBtn");
+
+function makeList(source,count){return Array.from({length:count},(_,i)=>source[i%source.length])}
+function extendList(saved,source,count){
+const result=Array.isArray(saved)?[...saved]:[];
+while(result.length<count)result.push(source[result.length%source.length]);
+return result.slice(0,count)
+}
+
+function loadLayout(){
+const mc=mainCols*mainRows,pc=padCols*padRows,p2c=pad2Cols*pad2Rows;
+const fallback={main:makeList(mainDefaultWords,mc),pad:makeList(padDefaultWords,pc),pad2:makeList(pad2DefaultWords,p2c)};
+const saved=localStorage.getItem(STORAGE_KEY);
+if(!saved)return fallback;
+try{
+const parsed=JSON.parse(saved);
+return {
+main:extendList(parsed.main,mainDefaultWords,mc),
+pad:extendList(parsed.pad,padDefaultWords,pc),
+pad2:extendList(parsed.pad2,pad2DefaultWords,p2c)
+}
+}catch(e){return fallback}
+}
+
+function saveLayout(grids){
+const words=g=>Array.from(g.querySelectorAll("[data-word]")).map(b=>b.dataset.word);
+localStorage.setItem(STORAGE_KEY,JSON.stringify({
+main:words(grids.main),
+pad:words(grids.pad),
+pad2:words(grids.pad2)
+}))
+}
+
+async function copyText(doc,text){
+try{await doc.defaultView.navigator.clipboard.writeText(text)}
+catch(e){
+const t=doc.createElement("textarea");
+t.value=text;t.style.position="fixed";t.style.opacity="0";
+doc.body.appendChild(t);t.select();doc.execCommand("copy");t.remove()
+}
+}
+
+function applyButtonStyle(button,gridCols){
+Object.assign(button.style,{
+minWidth:"0",
+minHeight:"0",
+width:"100%",
+height:"100%",
+padding:"0 5px",
+fontWeight:"500",
+lineHeight:"1",
+fontSize:`clamp(8px, ${Math.max(1.7, 22 / gridCols)}vw, 10px)`,
+border:"1px solid #4a515c",
+borderRadius:"4px",
+background:"#30353d",
+color:"#f4f7fa",
+display:"flex",
+alignItems:"center",
+justifyContent:"center",
+overflow:"hidden",
+textOverflow:"ellipsis",
+whiteSpace:"nowrap",
+userSelect:"none",
+cursor:"default",
+touchAction:"none",boxSizing:"border-box",maxWidth:"100%",maxHeight:"100%"
+})
+}
+
+function createWordButton(doc,word,gridCols,grids){
+const b=doc.createElement("button");
+b.type="button";
+b.textContent=word;
+b.dataset.word=word;
+b.draggable=false;
+applyButtonStyle(b,gridCols);
+
+let holdTimer=null,dragReady=false,pointerDown=false,startX=0,startY=0;
+const clearHold=()=>{if(holdTimer){clearTimeout(holdTimer);holdTimer=null}};
+
+b.addEventListener("pointerdown",e=>{
+pointerDown=true;dragReady=false;startX=e.clientX;startY=e.clientY;
+holdTimer=setTimeout(()=>{
+if(!pointerDown)return;
+dragReady=true;
+b.draggable=true;
+b.style.cursor="grab";
+b.style.outline="1px solid #8fa7c4";
+b.style.outlineOffset="-1px"
+},500)
+});
+
+b.addEventListener("pointermove",e=>{
+if(!dragReady&&Math.hypot(e.clientX-startX,e.clientY-startY)>8){
+clearHold();pointerDown=false
+}
+});
+
+["pointerup","pointercancel","pointerleave"].forEach(type=>b.addEventListener(type,()=>{
+pointerDown=false;
+clearHold();
+if(!dragReady){
+b.draggable=false;
+b.style.cursor="default";
+b.style.outline="none"
+}
+}));
+
+b.addEventListener("dragstart",e=>{
+if(!dragReady){e.preventDefault();return}
+draggedElement=b;
+suppressClick=true;
+b.style.opacity="0.45";
+b.style.cursor="grabbing";
+e.dataTransfer.effectAllowed="move";
+e.dataTransfer.setData("text/plain",b.dataset.word)
+});
+
+b.addEventListener("dragend",()=>{
+draggedElement=null;
+dragReady=false;
+b.draggable=false;
+b.style.opacity="1";
+b.style.cursor="default";
+b.style.outline="none";
+setTimeout(()=>suppressClick=false,80)
+});
+
+b.addEventListener("dragover",e=>{
+if(draggedElement&&draggedElement!==b){
+e.preventDefault();
+e.dataTransfer.dropEffect="move"
+}
+});
+
+b.addEventListener("dragenter",e=>{
+e.preventDefault();
+if(draggedElement&&draggedElement!==b)b.style.background="#414955"
+});
+
+b.addEventListener("dragleave",()=>b.style.background="#30353d");
+
+b.addEventListener("drop",e=>{
+e.preventDefault();
+if(!draggedElement||draggedElement===b)return;
+const w=b.dataset.word,t=b.textContent;
+b.dataset.word=draggedElement.dataset.word;
+b.textContent=draggedElement.textContent;
+draggedElement.dataset.word=w;
+draggedElement.textContent=t;
+b.style.background="#30353d";
+saveLayout(grids)
+});
+
+b.addEventListener("click",async e=>{
+if(suppressClick||dragReady)return;
+const w=b.dataset.word;
+const text=w.startsWith("/")?w:e.ctrlKey?w:e.altKey?`(${w})`:`(${w}.)`;
+await copyText(doc,text);
+b.style.background="#5a6a7c";
+setTimeout(()=>b.style.background="#30353d",140)
+});
+
+return b
+}
+
+function createGrid(root,doc){
+root.innerHTML="";
+
+const wrapper=doc.createElement("div");
+Object.assign(wrapper.style,{
+boxSizing:"border-box",
+position:"absolute",
+inset:"0",
+width:"100%",
+height:"100%",
+display:"grid",
+gridTemplateRows:"54px minmax(0,1fr)",
+gridTemplateColumns:"1fr",
+gap:"0",
+padding:"6px 12px 12px 6px",
+background:"#17191d",
+overflow:"hidden"
+});
+
+const numberPanel=doc.createElement("div");
+Object.assign(numberPanel.style,{
+boxSizing:"border-box",
+width:"100%",
+height:"46px",
+padding:"4px 6px",
+margin:"0",
+background:"#20242a",
+border:"1px solid #4a515c",
+borderRadius:"6px",
+overflow:"hidden"
+});
+const numberRow=doc.createElement("div");
+Object.assign(numberRow.style,{
+boxSizing:"border-box",
+width:"100%",
+height:"100%",
+display:"grid",
+gridTemplateColumns:"1.4fr 1fr 1fr 1fr 1fr",
+gridTemplateRows:"1fr",
+gap:"5px",
+alignItems:"stretch",
+minWidth:"0"
+});
+function makeNumberItem(labelText,element){
+const item=doc.createElement("div");
+Object.assign(item.style,{minWidth:"0",height:"100%",display:"flex",flexDirection:"column",gap:"2px",overflow:"hidden"});
+const label=doc.createElement("div");
+label.textContent=labelText;
+Object.assign(label.style,{fontSize:"9px",lineHeight:"11px",height:"11px",color:"#bfc7d1",textAlign:"center",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",flex:"0 0 auto"});
+item.append(label,element);
+return item;
+}
+const pipInput=doc.createElement("input");
+pipInput.type="text";
+pipInput.id="pipNumberInput";
+pipInput.placeholder="예: 삼성동 16-1, fm 91.9...";
+Object.assign(pipInput.style,{width:"100%",height:"26px",minWidth:"0",boxSizing:"border-box",padding:"3px 7px",border:"1px solid #4a515c",borderRadius:"4px",background:"#15181c",color:"#fff",font:"11px Arial, 'Malgun Gothic', sans-serif",outline:"none"});
+function makeOut(id){
+const out=doc.createElement("div");
+out.id=id;
+Object.assign(out.style,{width:"100%",height:"26px",minWidth:"0",boxSizing:"border-box",padding:"3px 7px",border:"1px solid #4a515c",borderRadius:"4px",background:"#1b1f24",color:"#fff",font:"11px Arial, 'Malgun Gothic', sans-serif",lineHeight:"1.2",whiteSpace:"pre-wrap",wordBreak:"break-all",overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"flex-start",textAlign:"left",cursor:"pointer",position:"relative"});
+out.title="클릭하여 복사";
+return out;
+}
+numberRow.append(
+makeNumberItem("입력창",pipInput),
+makeNumberItem("변환 결과 텍스트창1",makeOut("pipNumberOut1")),
+makeNumberItem("변환 결과 텍스트창2",makeOut("pipNumberOut2")),
+makeNumberItem("변환 결과 텍스트창3",makeOut("pipNumberOut3")),
+makeNumberItem("변환 결과 텍스트창4",makeOut("pipNumberOut4"))
+);
+numberPanel.appendChild(numberRow);
+wrapper.appendChild(numberPanel);
+
+const gridArea=doc.createElement("div");
+Object.assign(gridArea.style,{minWidth:"0",minHeight:"0",width:"100%",height:"100%",overflow:"hidden"});
+
+const gridFlex=doc.createElement("div");
+Object.assign(gridFlex.style,{
+boxSizing:"border-box",
+width:"100%",height:"100%",
+display:"grid",
+gridTemplateColumns:"12fr 10fr 10fr",
+gap:"10px",
+overflow:"hidden"
+});
+
+const main=doc.createElement("div");
+const pad=doc.createElement("div");
+const pad2=doc.createElement("div");
+const grids={main,pad,pad2};
+
+Object.assign(main.style,{
+boxSizing:"border-box",
+minWidth:"0",
+minHeight:"0",
+width:"100%",
+height:"100%",
+display:"grid",
+gridTemplateColumns:`repeat(${mainCols}, minmax(0,1fr))`,
+gridTemplateRows:`repeat(${mainRows}, minmax(0,1fr))`,
+gap:"3px",
+overflow:"hidden"
+});
+
+Object.assign(pad.style,{
+boxSizing:"border-box",
+minWidth:"0",
+minHeight:"0",
+width:"100%",
+height:"100%",
+paddingLeft:"10px",
+borderLeft:"5px solid #252a31",
+display:"grid",
+gridTemplateColumns:`repeat(${padCols}, minmax(0,1fr))`,
+gridTemplateRows:`repeat(${padRows}, minmax(0,1fr))`,
+gap:"3px",
+overflow:"hidden"
+});
+
+Object.assign(pad2.style,{
+boxSizing:"border-box",
+minWidth:"0",
+minHeight:"0",
+width:"100%",
+height:"100%",
+paddingLeft:"10px",
+borderLeft:"5px solid #252a31",
+display:"grid",
+gridTemplateColumns:`repeat(${pad2Cols}, minmax(0,1fr))`,
+gridTemplateRows:`repeat(${pad2Rows}, minmax(0,1fr))`,
+gap:"3px",
+overflow:"hidden"
+});
+
+const layout=loadLayout();
+layout.main.forEach(w=>main.appendChild(createWordButton(doc,w,mainCols,grids)));
+layout.pad.forEach(w=>pad.appendChild(createWordButton(doc,w,padCols,grids)));
+layout.pad2.forEach(w=>pad2.appendChild(createWordButton(doc,w,pad2Cols,grids)));
+
+gridFlex.append(main,pad,pad2);
+gridArea.appendChild(gridFlex);
+wrapper.appendChild(gridArea);
+root.appendChild(wrapper);
+
+const pipInputEl=doc.getElementById("pipNumberInput");
+if(pipInputEl){
+const savedInput=document.getElementById("numberInput");
+pipInputEl.value=savedInput?savedInput.value:"";
+pipInputEl.addEventListener("input",()=>{
+processNumber(doc,pipInputEl.value,"pip");
+const mainInput=document.getElementById("numberInput");
+if(mainInput&&mainInput.value!==pipInputEl.value){
+mainInput.value=pipInputEl.value;
+processNumber(document,pipInputEl.value,"main");
+}
+});
+pipInputEl.addEventListener("keydown",e=>e.stopPropagation());
+["pipNumberOut1","pipNumberOut2","pipNumberOut3","pipNumberOut4"].forEach(id=>{
+const el=doc.getElementById(id);
+if(el)el.addEventListener("click",()=>copyText(doc,el.textContent));
+});
+processNumber(doc,pipInputEl.value,"pip");
+}
+}
+
+
+const numberUnits=["","십","백","천","만"];
+const numberNums=["영","일","이","삼","사","오","육","칠","팔","구"];
+
+function readComplexNumber(numStr){
+if(!numStr)return "";
+let n=parseInt(numStr,10);
+if(n===0)return "영";
+let res="",len=numStr.length;
+for(let i=0;i<len;i++){
+let digit=parseInt(numStr[i],10);
+let power=len-i-1;
+if(digit!==0){
+if(digit===1&&power>0)res+=numberUnits[power];
+else res+=numberNums[digit]+numberUnits[power];
+}
+}
+return res;
+}
+
+function readEachNumber(numStr){
+return numStr.split("").map(c=>numberNums[parseInt(c,10)]).join("");
+}
+
+function convertNumberBlock(numStr,mode){
+if(numStr.includes(".")){
+let parts=numStr.split(".");
+let p1=(mode===1||mode===3)?readComplexNumber(parts[0]):readEachNumber(parts[0]);
+let p2=readEachNumber(parts[1]);
+return p1+"점"+p2;
+}
+if(numStr.includes("-")){
+let parts=numStr.split("-");
+let p1=(mode===1||mode===3)?readComplexNumber(parts[0]):readEachNumber(parts[0]);
+let p2=(mode===1||mode===2)?readComplexNumber(parts[1]):readEachNumber(parts[1]);
+return p1+"다시"+p2;
+}
+return (mode===1||mode===3)?readComplexNumber(numStr):readEachNumber(numStr);
+}
+
+function parseNumberText(text,mode){
+if(!text.trim())return "";
+let resText=text;
+let roadRegex=/([0-9]+번길)\s*([0-9]+-[0-9]+|[0-9]+)/g;
+resText=resText.replace(roadRegex,function(match,street,building){
+let streetNum=street.replace("번길","");
+let streetKor=convertNumberBlock(streetNum,(mode===1||mode===3)?1:2);
+let buildingKor=convertNumberBlock(building,mode);
+return `[${streetNum}/${streetKor}]번길 [${building}/${buildingKor}]`;
+});
+resText=resText.replace(/\b(fm|am)\s+([0-9.]+)/ig,function(match,rad,num){
+let radKor=rad.toLowerCase()==="fm"?"에프엠":"에이엠";
+let numKor=convertNumberBlock(num,mode);
+return `[${match}/${radKor} ${numKor}]`;
+});
+resText=resText.replace(/([0-9.]+)\s+(fm|am)\b/ig,function(match,num,rad){
+let radKor=rad.toLowerCase()==="fm"?"에프엠":"에이엠";
+let numKor=convertNumberBlock(num,mode);
+return `[${match}/${numKor} ${radKor}]`;
+});
+resText=resText.replace(/(?<!\[[^\]]*)\b(fm|am)\b(?![^\[]*\])/ig,function(match){
+let radKor=match.toLowerCase()==="fm"?"에프엠":"에이엠";
+return `[${match}/${radKor}]`;
+});
+let numPattern=/(?<!\[[^\]]*)([0-9]+[\.-][0-9]+|[0-9]+)(?![^\[]*\])/g;
+resText=resText.replace(numPattern,function(match){
+return `[${match}/${convertNumberBlock(match,mode)}]`;
+});
+return resText;
+}
+
+function processNumber(doc,text,scope="main"){
+const ids=scope==="pip"?["pipNumberOut1","pipNumberOut2","pipNumberOut3","pipNumberOut4"]:["numberOut1","numberOut2","numberOut3","numberOut4"];
+ids.forEach((id,i)=>{
+const el=doc.getElementById(id);
+if(el)el.textContent=parseNumberText(text,i+1);
+});
+}
+
+function setupMainNumber(){
+const input=document.getElementById("numberInput");
+if(!input)return;
+input.addEventListener("input",()=>{
+processNumber(document,input.value,"main");
+if(pipWindow){
+const pipInput=pipWindow.document.getElementById("pipNumberInput");
+if(pipInput&&pipInput.value!==input.value){
+pipInput.value=input.value;
+processNumber(pipWindow.document,input.value,"pip");
+}
+}
+});
+input.addEventListener("keydown",e=>e.stopPropagation());
+["numberOut1","numberOut2","numberOut3","numberOut4"].forEach(id=>{
+const el=document.getElementById(id);
+if(el)el.addEventListener("click",()=>copyText(document,el.textContent));
+});
+processNumber(document,input.value,"main");
+}
+
+async function openPIP(){
+if(!("documentPictureInPicture" in window)){
+alert("이 브라우저는 Document Picture-in-Picture API를 지원하지 않습니다.");
+return
+}
+if(pipWindow){pipWindow.close();return}
+
+pipWindow=await window.documentPictureInPicture.requestWindow({
+width:2100,
+height:344
+});
+
+const d=pipWindow.document;
+d.documentElement.style.width="100%";
+d.documentElement.style.height="100%";
+
+Object.assign(d.body.style,{
+margin:"0",
+padding:"0",
+width:"100%",
+height:"100%",
+overflow:"hidden",
+background:"#17191d"
+});
+
+const root=d.createElement("div");
+root.id="pipGridContainer";
+Object.assign(root.style,{
+boxSizing:"border-box",
+position:"fixed",
+top:"0",
+right:"0",
+bottom:"0",
+left:"0",
+width:"100%",
+height:"100%",
+overflow:"hidden"
+});
+
+d.body.appendChild(root);
+createGrid(root,d);
+pipWindow.addEventListener("pagehide",()=>pipWindow=null)
+}
+
+applyGridBtn.addEventListener("click",()=>{
+mainCols=Math.max(1,parseInt(mainColsInput.value)||12);
+mainRows=Math.max(1,parseInt(mainRowsInput.value)||10);
+padCols=Math.max(1,parseInt(padColsInput.value)||10);
+padRows=Math.max(1,parseInt(padRowsInput.value)||10);
+pad2Cols=Math.max(1,parseInt(pad2ColsInput.value)||10);
+pad2Rows=Math.max(1,parseInt(pad2RowsInput.value)||10);
+
+if(pipWindow){
+const root=pipWindow.document.getElementById("pipGridContainer");
+if(root)createGrid(root,pipWindow.document)
+}
+});
+
+resetStorageBtn.addEventListener("click",()=>{
+if(!confirm("모든 배열의 단어 순서를 초기 상태로 되돌리겠습니까?"))return;
+localStorage.removeItem(STORAGE_KEY);
+if(pipWindow){
+const root=pipWindow.document.getElementById("pipGridContainer");
+if(root)createGrid(root,pipWindow.document)
+}
+});
+
+pipBtn.addEventListener("click",openPIP);
+setupMainNumber();
+</script>
+</body>
+</html>
