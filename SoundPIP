@@ -1,63 +1,71 @@
-// 1. 더 샅샅이 찾기 위해 querySelectorAll과 깊은 탐색(Shadow DOM까지 고려)을 사용하는 함수
-function findElementThoroughly(selector) {
-    // 일반적인 DOM 탐색
-    let element = document.querySelector(selector);
-    if (element) return element;
-
-    // 겹겹이 쌓인 iframe이나 Shadow DOM 내부까지 샅샅이 뒤지는 로직
-    function searchShadow(root) {
-        if (!root) return null;
-        
-        // 목적 요소 찾기
-        let found = root.querySelector(selector);
-        if (found) return found;
-
-        // 모든 하위 요소를 돌며 Shadow Root가 있는지 확인 (숨겨진 div 대처)
-        let children = root.querySelectorAll('*');
-        for (let child of children) {
-            if (child.shadowRoot) {
-                let shadowFound = searchShadow(child.shadowRoot);
-                if (shadowFound) return shadowFound;
-            }
-        }
-        return null;
-    }
-
-    return searchShadow(document.body);
-}
-
-// 2. 넘패드 상태 및 키 입력 수정 부분
 window.addEventListener('keydown', function(event) {
-    // event.numLock이 false이면 넘패드가 꺼진 상태입니다.
+    // 넘패드 꺼짐 상태 확인
     const isNumLockOff = event.getModifierState && !event.getModifierState('NumLock');
 
     if (isNumLockOff) {
-        // 넘패드가 꺼졌을 때 원래 'End' 등으로 인식되는 키(NumPad 1)를 일반 숫자 '1'로 강제 매핑 및 처리
-        if (event.key === 'End' || event.code === 'Numpad1') {
-            console.log("넘패드가 꺼진 상태에서 1번 키 감지 -> 동작 실행");
-            
-            // 샅샅이 찾기 함수 실행 (예시: '.target-div'를 상황에 맞는 선택자로 변경하세요)
-            const targetDiv = findElementThoroughly('.target-div'); 
-            
-            if (targetDiv) {
-                targetDiv.click(); // 요소를 찾았을 때 실행할 동작
-                console.log("요소를 찾아 클릭했습니다.");
+        // [넘패드 5번 키] 감지
+        if (event.key === 'Clear' || event.code === 'Numpad5') {
+            event.preventDefault(); 
+
+            if (typeof $0 !== 'undefined' && $0) {
+                let audioElement = null;
+
+                // 1. 선택한 $0 자체가 audio 태그인지 확인
+                if ($0.tagName === 'AUDIO') {
+                    audioElement = $0;
+                } else {
+                    // 2. 하위 audio 태그 샅샅이 검색
+                    audioElement = $0.querySelector('audio');
+
+                    // 3. Shadow DOM 내부까지 탐색
+                    if (!audioElement) {
+                        const allElements = $0.querySelectorAll('*');
+                        for (let el of allElements) {
+                            if (el.shadowRoot) {
+                                audioElement = el.shadowRoot.querySelector('audio');
+                                if (audioElement) break;
+                            }
+                        }
+                    }
+                }
+
+                // 오디오 태그를 찾았을 때 속도 토글
+                if (audioElement) {
+                    // 항상 재생 상태로 만듦
+                    if (audioElement.paused) {
+                        audioElement.play();
+                    }
+
+                    // 현재 속도가 0.5배속이 아니면 0.5배속으로, 이미 0.5배속이면 1.0배속으로 변경
+                    if (audioElement.playbackRate !== 0.5) {
+                        audioElement.playbackRate = 0.5;
+                        console.log("속도를 0.5 배속으로 변경했습니다.");
+                    } else {
+                        audioElement.playbackRate = 1.0;
+                        console.log("속도를 정상(1.0 배속)으로 되돌렸습니다.");
+                    }
+                } else {
+                    $0.click();
+                    console.log("하위에 audio가 없어 요소를 클릭했습니다.");
+                }
+
             } else {
-                console.log("요소를 끝까지 찾지 못했습니다. 선택자를 확인해주세요.");
+                console.warn("개발자 도구 Elements 탭에서 감싸고 있는 div를 먼저 선택($0)해주세요.");
             }
-            
-            // 기본 브라우저 동작 방지 필요 시
-            event.preventDefault();
         }
     }
 });
+
 
 
 ---------
 javascript:(function(){const audios=document.querySelectorAll('audio');if(audios.length===0){alert('이 페이지에서 오디오 태그를 찾지 못했습니다.');}else{audios.forEach(audio=>audio.playbackRate=0.8);console.log('모든 오디오 속도가 0.8배속으로 변경되었습니다.');}})();
 
 ---------
+javascript:(function(){if(window._myAudioToggle)window.removeEventListener('keydown',window._myAudioToggle);window._myAudioToggle=function(e){if(e.getModifierState&&!e.getModifierState('NumLock')){if(e.key==='Clear'||e.code==='Numpad5'){e.preventDefault();if(typeof $0!=='undefined'&&$0){let a=$0.tagName==='AUDIO'?$0:$0.querySelector('audio');if(!a){let els=$0.querySelectorAll('*');for(let el of els){if(el.shadowRoot){a=el.shadowRoot.querySelector('audio');if(a)break;}}}if(a){if(a.paused)a.play();if(a.playbackRate!==0.5){a.playbackRate=0.5;console.log("0.5배속");}else{a.playbackRate=1.0;console.log("1.0배속");}}else{$0.click();}}}};window.addEventListener('keydown',window._myAudioToggle);alert('오디오 매크로가 활성화되었습니다!\nElements 탭에서 div를 선택하고 넘패드 5번을 누르세요.');})();
 
+
+---------
 
 <!DOCTYPE html>
 <html lang="ko">
