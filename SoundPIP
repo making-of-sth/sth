@@ -1,3 +1,29 @@
+// 키보드 입력을 감시하는 이벤트 리스너 등록
+window.addEventListener('keydown', (event) => {
+    // NumLock이 꺼진 상태에서 넘패드 2번(아래 화살표)을 눌렀을 때
+    if (event.key === 'ArrowDown' && event.code === 'Numpad2') {
+        
+        // 현재 페이지에 있는 모든 오디오 태그 찾기
+        const audios = document.querySelectorAll('audio');
+        
+        if (audios.length > 0) {
+            audios.forEach(audio => {
+                // 원하시는 느린 속도(예: 0.8)를 입력하세요
+                audio.playbackRate = 0.8; 
+            });
+            console.log('✨ 넘패드 2번 클릭: 모든 오디오 0.8배속 설정 완료!');
+        } else {
+            console.log('❌ 현재 페이지에 오디오 태그가 없습니다.');
+        }
+    }
+});
+
+---------
+javascript:(function(){const audios=document.querySelectorAll('audio');if(audios.length===0){alert('이 페이지에서 오디오 태그를 찾지 못했습니다.');}else{audios.forEach(audio=>audio.playbackRate=0.8);console.log('모든 오디오 속도가 0.8배속으로 변경되었습니다.');}})();
+
+---------
+
+
 <!DOCTYPE html>
 <html lang="ko">
 <head>
