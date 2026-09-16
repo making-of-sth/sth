@@ -1,61 +1,30 @@
-window.addEventListener('keydown', function(event) {
-    // 넘패드 꺼짐 상태 확인
-    const isNumLockOff = event.getModifierState && !event.getModifierState('NumLock');
+(function() {
+    // 현재 선택한 audio 태그를 전역 변수에 저장 (페이지 이동 후에도 유지되도록 window에 바인딩)
+    window.myTargetAudio = $0;
+    
+    // 재생 속도 상태를 저장할 변수 (기본 1.0)
+    let isSlow = false;
 
-    if (isNumLockOff) {
-        // [넘패드 5번 키] 감지
+    // 키보드 입력 감지 이벤트 리스너 추가
+    window.addEventListener('keydown', function(event) {
+        // 넘패드 5번 키 (NumLock이 꺼져 있을 때의 키 이름은 'Clear'입니다)
         if (event.key === 'Clear' || event.code === 'Numpad5') {
-            event.preventDefault(); 
-
-            if (typeof $0 !== 'undefined' && $0) {
-                let audioElement = null;
-
-                // 1. 선택한 $0 자체가 audio 태그인지 확인
-                if ($0.tagName === 'AUDIO') {
-                    audioElement = $0;
-                } else {
-                    // 2. 하위 audio 태그 샅샅이 검색
-                    audioElement = $0.querySelector('audio');
-
-                    // 3. Shadow DOM 내부까지 탐색
-                    if (!audioElement) {
-                        const allElements = $0.querySelectorAll('*');
-                        for (let el of allElements) {
-                            if (el.shadowRoot) {
-                                audioElement = el.shadowRoot.querySelector('audio');
-                                if (audioElement) break;
-                            }
-                        }
-                    }
-                }
-
-                // 오디오 태그를 찾았을 때 속도 토글
-                if (audioElement) {
-                    // 항상 재생 상태로 만듦
-                    if (audioElement.paused) {
-                        audioElement.play();
-                    }
-
-                    // 현재 속도가 0.5배속이 아니면 0.5배속으로, 이미 0.5배속이면 1.0배속으로 변경
-                    if (audioElement.playbackRate !== 0.5) {
-                        audioElement.playbackRate = 0.5;
-                        console.log("속도를 0.5 배속으로 변경했습니다.");
-                    } else {
-                        audioElement.playbackRate = 1.0;
-                        console.log("속도를 정상(1.0 배속)으로 되돌렸습니다.");
-                    }
-                } else {
-                    $0.click();
-                    console.log("하위에 audio가 없어 요소를 클릭했습니다.");
-                }
-
+            event.preventDefault(); // 브라우저 기본 동작 방지
+            
+            // 토글 로직
+            if (!isSlow) {
+                window.myTargetAudio.playbackRate = 0.5;
+                isSlow = true;
+                console.log("재생 속도: 0.5배속");
             } else {
-                console.warn("개발자 도구 Elements 탭에서 감싸고 있는 div를 먼저 선택($0)해주세요.");
+                window.myTargetAudio.playbackRate = 1.0;
+                isSlow = false;
+                console.log("재생 속도: 1.0배속 (정상)");
             }
         }
-    }
-});
-
+    });
+    console.log("스크립트 활성화 완료! 넘패드 5번으로 속도를 조절하세요.");
+})();
 
 
 ---------
