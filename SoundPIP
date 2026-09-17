@@ -1,4 +1,32 @@
 (function() {
+    window.myTargetAudio = \$0;
+    let isSlow = false;
+
+    // keydown 대신 keyup(키를 누르고 뗄 때)을 사용하여 타이밍 문제를 해결하고, 
+    // capture 옵션(true)을 주어 브라우저가 입력을 씹지 못하게 최우선 순위로 가로챕니다.
+    window.addEventListener('keyup', function(event) {
+        if (event.key === 'Clear' || event.code === 'Numpad5') {
+            event.preventDefault();
+            event.stopPropagation(); // 다른 기능과 충돌 방지
+            
+            if (!isSlow) {
+                window.myTargetAudio.playbackRate = 0.5;
+                isSlow = true;
+                console.log(`[단축키: ${event.key}] 재생 속도 -> 0.5배속`);
+            } else {
+                window.myTargetAudio.playbackRate = 1.0;
+                isSlow = false;
+                console.log(`[단축키: ${event.key}] 재생 속도 -> 1.0배속 (정상)`);
+            }
+        }
+    }, true); // true 옵션이 가장 중요합니다 (이벤트 캡처링)
+    
+    console.log("스크립트 개선 완료! 이제 넘패드 5번을 가볍게 툭 눌러보세요.");
+})();
+
+
+_____
+(function() {
     // 현재 선택한 audio 태그를 전역 변수에 저장 (페이지 이동 후에도 유지되도록 window에 바인딩)
     window.myTargetAudio = $0;
     
