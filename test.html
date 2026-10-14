@@ -1,4 +1,66 @@
 (function() {
+    // 1. 배너 생성 (없을 때만)
+    let alertBox = document.getElementById('ai-live-banner');
+    if (!alertBox) {
+        alertBox = document.createElement('div');
+        alertBox.id = 'ai-live-banner';
+        alertBox.style.position = 'fixed';
+        alertBox.style.top = '10px';
+        alertBox.style.left = '50%';
+        alertBox.style.transform = 'translateX(-50%)';
+        alertBox.style.backgroundColor = '#2196F3'; // 이번엔 파란색 배너
+        alertBox.style.color = '#fff';
+        alertBox.style.padding = '12px 25px';
+        alertBox.style.fontSize = '18px';
+        alertBox.style.fontWeight = 'bold';
+        alertBox.style.zIndex = '999999';
+        alertBox.style.borderRadius = '8px';
+        alertBox.style.boxShadow = '0 4px 10px rgba(0,0,0,0.3)';
+        document.body.appendChild(alertBox);
+    }
+
+    // 2. Nuxt 내부 상태(State)에서 현재 활성화된 데이터 찾아오기
+    function findNuxtData() {
+        let textFound = "데이터를 찾는 중...";
+        
+        // Nuxt 3 / Vue 3 환경의 활성화된 데이터 트리 탐색
+        const allElements = document.querySelectorAll('*');
+        for (let el of allElements) {
+            // Vue 컴포넌트의 내부 데이터(Context / Setup State) 접근
+            const vueInstance = el.__vue_parent__ || el.__vue_app__;
+            if (vueInstance) {
+                const ctx = vueInstance.ctx || vueInstance;
+                
+                // 개발자가 변수명으로 쓸만한 후보들 추적 (사이트 구조에 맞게 자동 탐색)
+                // ctx 내부에 현재 작업 중인 라벨 데이터 오브젝트가 들어있음
+                if (ctx && typeof ctx === 'object') {
+                    // 내부 변수 중 라벨, 텍스트, 태스크 관련 오브젝트 추출 시도
+                    const potentialData = ctx.task || ctx.data || ctx.label || ctx.current;
+                    if (potentialData && (potentialData.text || potentialData.preview || potentialData.transcript)) {
+                        textFound = potentialData.text || potentialData.preview || potentialData.transcript;
+                        break;
+                    }
+                }
+            }
+        }
+        
+        // 배너에 출력
+        alertBox.innerText = `🤖 Nuxt 메모리 데이터: ${textFound}`;
+        
+        // 입력창 배경색 연노랑 유지
+        document.querySelectorAll('textarea, input[type="text"]').forEach(el => {
+            el.style.setProperty('background-color', '#fff9c4', 'important');
+        });
+    }
+
+    // 1초마다 메모리를 새로 읽어서 화면 바뀜 감지
+    setInterval(findNuxtData, 1000);
+    console.log("🚀 Elements 코드가 멈춰있어도 Nuxt 내부 메모리를 직접 추적하기 시작했습니다.");
+})();
+
+
+
+(function() {
     // 1. 화면의 모든 HTML 요소 중 Nuxt/Vue 인스턴스가 숨겨진 요소 찾기
     const allElements = document.querySelectorAll('*');
     let found = false;
