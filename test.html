@@ -1,3 +1,32 @@
+// 1. 페이지 내의 모든 AudioContext(웹 오디오 엔진) 찾기
+(function() {
+    const desiredSpeed = 1.5; // <--- 원하시는 배속을 여기에 적으세요! (예: 1.5, 2.0)
+
+    // 이미 생성된 오디오 컨텍스트의 속도를 조절하기 위해 오디오 노드들을 탐색
+    if (window.__audioCtxs) {
+        window.__audioCtxs.forEach(ctx => {
+            ctx.playbackRate = desiredSpeed;
+        });
+    }
+
+    // 가상으로 오디오 속도를 조절하는 타임 스트레칭 강제 적용
+    const originalCreateBufferSource = AudioContext.prototype.createBufferSource || webkitAudioContext.prototype.createBufferSource;
+    AudioContext.prototype.createBufferSource = webkitAudioContext.prototype.createBufferSource = function() {
+        const source = originalCreateBufferSource.apply(this, arguments);
+        setTimeout(() => {
+            if (source.playbackRate) {
+                source.playbackRate.value = desiredSpeed;
+                console.log(`Web Audio API 속도가 ${desiredSpeed}배속으로 변경되었습니다.`);
+            }
+        }, 50);
+        return source;
+    };
+    
+    // 일반 태그 방식도 혹시 모르니 동시에 조절
+    document.querySelectorAll('audio, video').forEach(m => m.playbackRate = desiredSpeed);
+})();
+
+
 <!DOCTYPE html>
 <html lang="ko">
 
