@@ -1,3 +1,15 @@
+// 표준 AudioContext를 먼저 찾고, 없으면 구형 웹킷 접두사를 사용합니다.
+const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+
+if (AudioContextClass) {
+  const audioCtx = new AudioContextClass();
+  // 오디오 작업 진행
+} else {
+  console.error("이 브라우저는 Web Audio API를 지원하지 않습니다.");
+}
+
+
+
 // 1. 페이지 내의 모든 AudioContext(웹 오디오 엔진) 찾기
 (function() {
     const desiredSpeed = 1.5; // <--- 원하시는 배속을 여기에 적으세요! (예: 1.5, 2.0)
