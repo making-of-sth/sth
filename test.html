@@ -1,40 +1,22 @@
 (function() {
-    // 1. 브라우저의 기본 AudioContext 구조를 백업하고 변조합니다.
-    const originalCreateBufferSource = window.AudioContext.prototype.createBufferSource || window.webkitAudioContext.prototype.createBufferSource;
-    
-    if (!window.__activeAudioSources) {
-        window.__activeAudioSources = [];
-        
-        const targetContext = window.AudioContext || window.webkitAudioContext;
-        const orgCreateSrc = targetContext.prototype.createBufferSource;
-        
-        targetContext.prototype.createBufferSource = function() {
-            const source = orgCreateSrc.apply(this, arguments);
-            window.__activeAudioSources.push(source);
-            // 만약 이미 설정된 전역 배속 값이 있다면 적용
-            if (window.__currentPlaybackRate) {
-                source.playbackRate.value = window.__currentPlaybackRate;
-            }
-            return source;
-        };
-    }
+    // 1. 화면의 모든 HTML 요소 중 Nuxt/Vue 인스턴스가 숨겨진 요소 찾기
+    const allElements = document.querySelectorAll('*');
+    let found = false;
 
-    // 2. 원하는 배속을 지정합니다 (원하는 속도로 변경 가능, 예: 1.5, 2.0, 0.8 등)
-    const SPEED = 2.0; 
-    window.__currentPlaybackRate = SPEED;
-
-    // 3. 현재 이미 재생 중인 오디오 소스들의 속도를 전부 변경합니다.
-    let count = 0;
-    window.__activeAudioSources.forEach(source => {
-        try {
-            source.playbackRate.value = SPEED;
-            count++;
-        } catch(e) {}
+    allElements.forEach(el => {
+        // Vue 3 버전 컴포넌트 내부 데이터 추적
+        if (el.__vue_app__ || el.__vue_parent__ || el.getVueInstance) {
+            console.log("🎯 Vue 요소 발견:", el);
+            console.dir(el.__vue_parent__?.ctx || el.__vue_app__);
+            found = true;
+        }
     });
 
-    console.log(`🔊 오디오 배속이 ${SPEED}배로 설정되었습니다. (현재 제어된 오디오 노드: ${count}개)`);
-    console.log(`👉 오디오를 '정지했다가 다시 재생'하거나 다음 음원으로 넘어가면 배속이 확실하게 적용됩니다!`);
+    if (!found) {
+        console.log("❌ 일반적인 방법으로는 Vue 데이터에 접근할 수 없습니다. 보안 프록시 처리되었거나 서버 데이터 미전송 상태일 수 있습니다.");
+    }
 })();
+
 
 
 
