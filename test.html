@@ -1,88 +1,84 @@
 (function() {
-    console.log("%c[Nuxt Tracker] 스크립트가 시작되었습니다.", "color: #00c58e; font-weight: bold;");
+    console.log("%c[Hidden Origin Data Tracker] 감시 시작...", "color: #10b981; font-weight: bold;");
 
-    // JSON 내부에서 imLabel, amLabel 값을 깊은 곳까지 찾아내는 재귀 함수
-    function findLabels(obj, results = []) {
-        if (!obj || typeof obj !== 'object') return results;
-        
+    let lastFoundText = "";
+    const ignoreText = "아직 작업되지 않은 태스크";
+
+    // 텍스트창 배경 출력 함수
+    function displayBackground(text) {
+        if (!text || text === lastFoundText) return;
+        lastFoundText = text;
+
+        const targetInput = document.querySelector('textarea') || document.querySelector('input[type="text"]');
+        if (targetInput) {
+            const svgText = encodeURIComponent(
+                `<svg xmlns="http://w3.org" width="100%" height="100%"><foreignObject width="100%" height="100%"><div xmlns="http://w3.org" style="font-size:13px; font-family:sans-serif; color:rgba(16, 185, 129, 0.5); font-weight:bold; padding:35px 15px; white-space:pre-wrap; line-height:1.4;">[💡 숨겨진 원본 발견]:\n${text}</div></foreignObject></svg>`
+            );
+            targetInput.style.backgroundImage = `url("data:image/svg+xml,${svgText}")`;
+            targetInput.style.backgroundRepeat = 'no-repeat';
+            targetInput.style.backgroundPosition = 'top left';
+        }
+    }
+
+    // 오브젝트 내부를 뒤져서 진짜 원본 한글 문장을 찾아내는 함수
+    function findHiddenKorean(obj) {
+        if (!obj || typeof obj !== 'object') return;
+
         for (const key in obj) {
-            if (obj.hasOwnProperty(key)) {
-                if (key === 'imLabel' || key === 'amLabel') {
-                    results.push({ key: key, value: obj[key] });
-                } else if (typeof obj[key] === 'object') {
-                    findLabels(obj[key], results);
+            if (Object.prototype.hasOwnProperty.call(obj, key)) {
+                const val = obj[key];
+                if (typeof val === 'string' && val.length > 2 && /[가-힣]/.test(val)) {
+                    // 시스템 기본 문구거나 내가 입력한 값이 아닐 때 -> '원본'일 확률 높음
+                    if (!val.includes(ignoreText)) {
+                        console.log(`%c[메모리에서 원본 후보 발견] ${key}: ${val}`, "color: #10b981; font-weight: bold;");
+                        displayBackground(val);
+                    }
+                } else if (typeof val === 'object') {
+                    findHiddenKorean(val);
                 }
             }
         }
-        return results;
     }
 
-    // 현재 Nuxt 데이터를 분석하고 화면에 반영하는 핵심 함수
-    function trackNuxtData() {
-        // Nuxt 3는 window.__NUXT__ 내부의 data나 state에 실시간 JSON이 담깁니다.
-        const nuxtState = window.__NUXT__;
-        if (!nuxtState) {
-            console.warn("[Nuxt Tracker] 현재 페이지에서 __NUXT__ 데이터를 찾을 수 없습니다.");
-            return;
+    // 1. 네트워크 패킷 가로채기 (Fetch API Hook)
+    const originalFetch = window.fetch;
+    window.fetch = async function(...args) {
+        const response = await originalFetch.apply(this, args);
+        const clone = response.clone();
+        try {
+            const json = await clone.json();
+            findHiddenKorean(json);
+        } catch (e) {
+            try {
+                const text = await clone.text();
+                if (/[가-힣]/.test(text) && !text.includes(ignoreText)) {
+                    // JSON이 아닌 텍스트 데이터 내부 파싱 시도
+                    const matches = text.match(/"([^"\\]|\\.)*[가-힣]+([^"\\]|\\.)*"/g);
+                    if (matches) matches.forEach(m => findHiddenKorean({extracted: m.replace(/"/g, '')}));
+                }
+            } catch (err) {}
         }
+        return response;
+    };
 
-        const foundItems = findLabels(nuxtState);
+    // 2. Nuxt 내부 메모리 데이터 주기적 스캔 (가상 DOM 인터셉트)
+    setInterval(() => {
+        // window 객체에 연결된 Nuxt 및 Vue 인스턴스의 램 데이터 스캔
+        if (window.__NUXT__) {
+            findHiddenKorean(window.__NUXT__);
+        }
         
-        if (foundItems.length === 0) {
-            console.log("[Nuxt Tracker] 추출할 라벨 데이터가 없습니다.");
-            return;
+        // 화면 엘리먼트에 바인딩된 Vue 내부 데이터(__vue__ 또는 __vue_app__) 강제 스캔
+        const previewEl = document.querySelector('span[class*="task-preview"]');
+        if (previewEl) {
+            // Vue 3, Vue 2 컴포넌트 내부 프롭스나 데이터 강제 탐색
+            const vnode = previewEl.__vnode || previewEl.__vue__;
+            if (vnode) findHiddenKorean(vnode);
         }
+    }, 800);
 
-        // 1. 콘솔 출력 (테스트용)
-        console.group("%c[Nuxt Tracker] 새로운 페이지 로딩됨", "color: #3b82f6; font-weight: bold;");
-        console.log("전체 Nuxt 데이터:", nuxtState);
-        console.table(foundItems);
-        console.groupEnd();
-
-        // 배경에 출력할 텍스트 정리
-        const backgroundText = foundItems.map(item => `[${item.key}]: ${item.value}`).join('\n');
-
-        // 2. 화면의 유일한 텍스트창(textarea 또는 input)을 찾아 배경에 워터마크로 출력
-        // 페이지 이동 후 DOM이 렌더링될 시간을 주기 위해 약간의 지연(setTimeout)을 둡니다.
-        setTimeout(() => {
-            const targetInput = document.querySelector('textarea') || document.querySelector('input[type="text"]');
-            
-            if (targetInput) {
-                // 기존 스타일 유지하며 배경에 글자 넣기 (CSS 인코딩 처리)
-                const svgText = encodeURIComponent(
-                    `<svg xmlns="http://w3.org" width="100%" height="100%"><text x="10" y="30" fill="rgba(150, 150, 150, 0.25)" font-size="14" font-family="monospace">${backgroundText}</text></svg>`
-                );
-                
-                targetInput.style.backgroundImage = `url("data:image/svg+xml couplings,${svgText}")`;
-                targetInput.style.backgroundRepeat = 'no-repeat';
-                targetInput.style.backgroundPosition = 'top left';
-                
-                console.log("%c[Nuxt Tracker] 텍스트창 배경에 JSON 내용물 출력 완료!", "color: #10b981;");
-            } else {
-                console.log("[Nuxt Tracker] 이 페이지에는 텍스트창이 존재하지 않습니다.");
-            }
-        }, 500); // 0.5초 대기 후 DOM 조작
-    }
-
-    // Nuxt의 Single Page Application(SPA) 페이지 이동(History API) 감지 레이어
-    const pushState = history.pushState;
-    const replaceState = history.replaceState;
-
-    history.pushState = function() {
-        pushState.apply(history, arguments);
-        trackNuxtData();
-    };
-
-    history.replaceState = function() {
-        replaceState.apply(history, arguments);
-        trackNuxtData();
-    };
-
-    window.addEventListener('popstate', trackNuxtData); // 뒤로가기/앞으로가기 감지
-
-    // 첫 실행
-    trackNuxtData();
 })();
+
 
 
 
