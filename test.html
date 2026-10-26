@@ -1,44 +1,91 @@
-// 전역에서 속도를 조절할 수 있는 컨트롤러 객체 생성
-window.audioController = {
-    speed: 1.0, // 기본 배속
-    elements: [],
-    contexts: [],
-    
-    // 배속 변경 함수
-    setSpeed: function(newSpeed) {
-        this.speed = newSpeed;
+(function() {
+    // 기존에 이미 등록된 오디오 제어 창이 있다면 제거
+    const oldPanel = document.getElementById('audio-speed-panel');
+    if (oldPanel) oldPanel.remove();
+
+    // 전역 변수로 현재 활성화된 오디오 엘리먼트 저장
+    window.currentAudioElement = null;
+
+    // 1. URL.createObjectURL 메서드 스파이(Hook) 설정
+    const originalCreateObjectURL = URL.createObjectURL;
+    URL.createObjectURL = function(obj) {
+        const blobUrl = originalCreateObjectURL.apply(this, arguments);
         
-        // 1. Audio 엘리먼트 방식 배속 조절
-        this.elements.forEach(audio => {
-            try { audio.playbackRate = newSpeed; } catch(e){}
+        // 데이터 타입이 오디오이거나 blob인 경우 감지
+        if (obj instanceof Blob && obj.type.includes('audio')) {
+            console.log(`[감지됨] 새로운 오디오 Blob URL: ${blobUrl}`);
+            createNewAudioElement(blobUrl);
+        }
+        return blobUrl;
+    };
+
+    // 2. Fetch/XHR 응답에서 Blob 오디오 감지 (대안 브릿지)
+    const originalResponseBlob = Response.prototype.blob;
+    Response.prototype.blob = function() {
+        return originalResponseBlob.apply(this, arguments).then(blob => {
+            if (blob.type.includes('audio')) {
+                const blobUrl = URL.createObjectURL(blob);
+                // createObjectURL 훅에서 자동으로 처리됨
+            }
+            return blob;
         });
+    };
+
+    // 3. 화면에 배속 조절 UI 및 오디오 바인딩 함수
+    function createNewAudioElement(url) {
+        // 기존 오디오 정지 (여러 개 쌓이는 것 방지, 항상 최신만 유지)
+        if (window.currentAudioElement) {
+            window.currentAudioElement.pause();
+        }
+
+        // 새 오디오 객체 생성 및 주소 할당
+        const audio = new Audio(url);
+        window.currentAudioElement = audio;
+
+        // 자동으로 재생을 시도하거나, 웹사이트의 재생 타이밍에 맞춰 배속을 유지하기 위해 전역 바인딩
+        audio.playbackRate = parseFloat(document.getElementById('audio-speed-input')?.value || '1.0');
         
-        // 2. Web Audio API (AudioContext) 방식 배속 조절
-        // 소스 노드의 재생 속도를 변경하는 방식 (사이트 구조에 따라 추가 제어 필요할 수 있음)
-        console.log(`[AudioController] 속도가 ${newSpeed}배속으로 설정되었습니다.`);
+        // 콘솔 및 UI 업데이트
+        updateUI(audio);
     }
-};
 
-// [방법 1] 오디오 엘리먼트가 동적으로 생성될 때 가로채기
-const OriginalAudio = window.Audio;
-window.Audio = function(...args) {
-    const audioInstance = new OriginalAudio(...args);
-    audioInstance.playbackRate = window.audioController.speed;
-    window.audioController.elements.push(audioInstance);
-    return audioInstance;
-};
+    // 4. 조작 가능한 미니 UI 생성 (화면 우측 상단 표시)
+    function updateUI(audioElement) {
+        let panel = document.getElementById('audio-speed-panel');
+        if (!panel) {
+            panel = document.createElement('div');
+            panel.id = 'audio-speed-panel';
+            panel.style = 'position:fixed; top:10px; right:10px; z-index:999999; background:rgba(0,0,0,0.8); color:white; padding:10px; border-radius:5px; font-family:sans-serif; font-size:12px;';
+            panel.innerHTML = `
+                <div style="margin-bottom:5px;">🎵 오디오 배속 컨트롤러</div>
+                <input type="number" id="audio-speed-input" value="1.0" step="0.1" min="0.5" max="4.0" style="width:50px; background:white; color:black; border:none; text-align:center;"> 배속
+                <button id="audio-play-btn" style="margin-left:5px; cursor:pointer;">재생/일시정지</button>
+            `;
+            document.body.appendChild(panel);
 
-// [방법 2] HTMLAudioElement의 재생 속도 프로퍼티 강제 고정
-Object.defineProperty(HTMLMediaElement.prototype, 'playbackRate', {
-    get: function() { return window.audioController.speed; },
-    set: function(val) { 
-        // 사이트 스크립트가 강제로 1배속으로 되돌리는 것을 방지
-        return window.audioController.speed; 
-    },
-    configurable: true
-});
+            // 이벤트 리스너 등록
+            document.getElementById('audio-speed-input').addEventListener('input', (e) => {
+                if (window.currentAudioElement) {
+                    window.currentAudioElement.playbackRate = parseFloat(e.target.value);
+                }
+            });
+            document.getElementById('audio-play-btn').addEventListener('click', () => {
+                if (window.currentAudioElement) {
+                    if (window.currentAudioElement.paused) window.currentAudioElement.play();
+                    else window.currentAudioElement.pause();
+                }
+            });
+        }
+        
+        // 새 오디오가 들어올 때마다 현재 입력된 배속 즉시 적용
+        const currentSpeed = parseFloat(document.getElementById('audio-speed-input').value);
+        audioElement.playbackRate = currentSpeed;
+        console.log(`[적용완료] 최하단(최신) 오디오에 ${currentSpeed}배속 적용됨.`);
+    }
 
-console.log("🔥 오디오 가로채기 스니펫이 준비되었습니다. 페이지 새로고침(F5) 후 바로 실행(Ctrl+Enter)하세요!");
+    console.log("⚡ 오디오 Blob 감지 스니펫이 실행되었습니다. 새 페이지를 로딩하거나 오디오를 재생해보세요.");
+})();
+
 
 
 
