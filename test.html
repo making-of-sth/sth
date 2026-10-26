@@ -1,37 +1,45 @@
-
-(function() {
-    // 1. 이미 생성된 모든 Video 태그 및 숨겨진 오디오/비디오 객체 탐색
-    let targets = Array.from(document.querySelectorAll('video, audio'));
+// 전역에서 속도를 조절할 수 있는 컨트롤러 객체 생성
+window.audioController = {
+    speed: 1.0, // 기본 배속
+    elements: [],
+    contexts: [],
     
-    // 2. 브라우저가 동적으로 만드는 비디오 객체까지 가로채기 (핵심)
-    const originalCreateElement = document.createElement;
-    document.createElement = function(tagName) {
-        const el = originalCreateElement.apply(this, arguments);
-        if (tagName.toLowerCase() === 'video' || tagName.toLowerCase() === 'audio') {
-            targets.push(el);
-        }
-        return el;
-    };
+    // 배속 변경 함수
+    setSpeed: function(newSpeed) {
+        this.speed = newSpeed;
+        
+        // 1. Audio 엘리먼트 방식 배속 조절
+        this.elements.forEach(audio => {
+            try { audio.playbackRate = newSpeed; } catch(e){}
+        });
+        
+        // 2. Web Audio API (AudioContext) 방식 배속 조절
+        // 소스 노드의 재생 속도를 변경하는 방식 (사이트 구조에 따라 추가 제어 필요할 수 있음)
+        console.log(`[AudioController] 속도가 ${newSpeed}배속으로 설정되었습니다.`);
+    }
+};
 
-    // 3. 단축키 이벤트 리스너 등록
-    window.addEventListener('keydown', function(e) {
-        // [ 키를 누르면 0.25배속 감속
-        if (e.key === '[') {
-            targets.forEach(media => {
-                media.playbackRate = Math.max(0.25, media.playbackRate - 0.25);
-                console.log(`현재 배속: ${media.playbackRate}x`);
-            });
-        }
-        // ] 키를 누르면 0.25배속 가속
-        if (e.key === ']') {
-            targets.forEach(media => {
-                media.playbackRate = Math.min(16, media.playbackRate + 0.25);
-                console.log(`현재 배속: ${media.playbackRate}x`);
-            });
-        }
-    });
-    console.log("배속 스크립트가 로드되었습니다. [ 키와 ] 키로 조절하세요.");
-})();
+// [방법 1] 오디오 엘리먼트가 동적으로 생성될 때 가로채기
+const OriginalAudio = window.Audio;
+window.Audio = function(...args) {
+    const audioInstance = new OriginalAudio(...args);
+    audioInstance.playbackRate = window.audioController.speed;
+    window.audioController.elements.push(audioInstance);
+    return audioInstance;
+};
+
+// [방법 2] HTMLAudioElement의 재생 속도 프로퍼티 강제 고정
+Object.defineProperty(HTMLMediaElement.prototype, 'playbackRate', {
+    get: function() { return window.audioController.speed; },
+    set: function(val) { 
+        // 사이트 스크립트가 강제로 1배속으로 되돌리는 것을 방지
+        return window.audioController.speed; 
+    },
+    configurable: true
+});
+
+console.log("🔥 오디오 가로채기 스니펫이 준비되었습니다. 페이지 새로고침(F5) 후 바로 실행(Ctrl+Enter)하세요!");
+
 
 
 
