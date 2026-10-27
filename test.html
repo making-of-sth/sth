@@ -1,38 +1,76 @@
-
 (function() {
+    // 이미 실행 중인지 확인
+    if (window.__audio_interceptor_loaded) return;
+    window.__audio_interceptor_loaded = true;
+
+    console.log("🎵 오디오 감지 및 배속 컨트롤러 스니펫이 활성화되었습니다.");
+
+    // 오디오 플레이어를 띄울 UI 상자 생성 (화면 최상단 고정)
+    const container = document.createElement('div');
+    container.style.cssText = `
+        position: fixed; top: 10px; right: 10px; z-index: 999999;
+        background: rgba(0, 0, 0, 0.85); color: white; padding: 15px;
+        border-radius: 8px; font-family: sans-serif; box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        max-width: 350px; display: flex; flex-direction: column; gap: 8px;
+    `;
+    
+    const title = document.createElement('div');
+    title.innerText = "🎧 감지된 오디오 플레이어 (배속 가능)";
+    title.style.cssText = "font-size: 12px; font-weight: bold; border-bottom: 1px solid #444; padding-bottom: 5px;";
+    container.appendChild(title);
+    
+    document.body.appendChild(container);
+
+    // 원본 fetch 함수 백업
     const originalFetch = window.fetch;
 
+    // fetch 요청을 가로챔
     window.fetch = async function(...args) {
         const response = await originalFetch.apply(this, args);
         
-        // 정상 응답(200 OK)인 경우에만 감지
-        if (response.status === 200) {
-            const contentType = response.headers.get('content-type') || '';
-            
-            // 응답이 오디오 관련이거나, binary/stream 데이터인 경우
-            if (contentType.includes('audio') || contentType.includes('octet-stream') || args[0].includes('blob')) {
-                
-                // 응답을 복사하여 blob 주소 강제 생성 (기존 웹사이트 로직 방해 금지)
+        // 응답의 Content-Type 확인 (오디오 파일인지 체크)
+        const contentType = response.headers.get('content-type');
+        
+        if (response.ok && contentType && contentType.includes('audio')) {
+            try {
+                // 응답 스트림을 복사하여 Blob으로 변환 (원본 스트림 오염 방지)
                 const clone = response.clone();
-                clone.blob().then(blob => {
-                    const audioBlobUrl = URL.createObjectURL(blob);
-                    
-                    console.log("%c[Blob Audio Detected!!]", "color: green; font-weight: bold; font-size: 14px;");
-                    console.log(`주소: ${audioBlobUrl}`);
-                    
-                    // 선택 사항: 감지 즉시 백그라운드 오디오 객체로 배속 조절하여 재생하고 싶다면 아래 주석을 해제하세요.
-                    /*
-                    const audio = new Audio(audioBlobUrl);
-                    audio.playbackRate = 2.0; // 원하는 배속
-                    audio.play();
-                    */
+                const blob = await clone.blob();
+                const blobUrl = URL.createObjectURL(blob);
+
+                console.log("✅ 성공적으로 오디오 Blob 주소를 추출했습니다:", blobUrl);
+
+                // 기존에 생성했던 임시 오디오 태그가 있다면 삭제 (페이지당 무조건 1개 유지를 위해)
+                const oldAudio = container.querySelector('audio');
+                if (oldAudio) oldAudio.remove();
+
+                // 배속 조절 기능이 포함된 순정 브라우저 오디오 재생기 생성
+                const audioEl = document.createElement('audio');
+                audioEl.src = blobUrl;
+                audioEl.controls = true; // 배속 조절 점 3개 메뉴 활성화
+                audioEl.style.width = "100%";
+                
+                // 단축키 기능 추가 (선택 사항: 오디오에 포커스 준 후 [ 이나 ] 누르면 배속 조절)
+                audioEl.addEventListener('keydown', (e) => {
+                    if (e.key === ']') audioEl.playbackRate += 0.25;
+                    if (e.key === '[') audioEl.playbackRate = Math.max(0.5, audioEl.playbackRate - 0.25);
                 });
+
+                container.appendChild(audioEl);
+                
+                // 시각적으로 잘 로드되었음을 알림
+                title.innerText = `🟢 감지 완료 (배속 지원)`;
+                title.style.color = "#00ff88";
+
+            } catch (err) {
+                console.error("오디오 Blob 변환 중 오류 발생:", err);
             }
         }
+
         return response;
     };
-    console.log("[Fetch Hook] Blob 미디어 주소 자동 추적 스크립트 활성화됨.");
 })();
+
 
 
 
