@@ -1,40 +1,39 @@
-(function() {
-    // 원하는 배속 설정
-    const TARGET_SPEED = 1.5; 
 
-    // 기존 fetch 가로채기
+(function() {
     const originalFetch = window.fetch;
+
     window.fetch = async function(...args) {
         const response = await originalFetch.apply(this, args);
-        const contentType = response.headers.get('content-type');
-
-        // Content-Type이 audio/wav 인 경우 감지
-        if (contentType && contentType.includes('audio/wav')) {
-            console.log("[BlobDetector] audio/wav 네트워크 요청 감지됨!");
+        
+        // 정상 응답(200 OK)인 경우에만 감지
+        if (response.status === 200) {
+            const contentType = response.headers.get('content-type') || '';
             
-            // 데이터를 blob으로 복사
-            const clone = response.clone();
-            const blob = await clone.blob();
-            const blobUrl = URL.createObjectURL(blob);
-            
-            // 기존에 만든 해킹용 오디오 태그가 있다면 제거
-            const oldAudio = document.getElementById('hacked-audio-player');
-            if (oldAudio) oldAudio.remove();
-
-            // 메모리 상에 오디오 엘리먼트를 동적으로 생성 및 재생
-            const audio = new Audio(blobUrl);
-            audio.id = 'hacked-audio-player';
-            audio.playbackRate = TARGET_SPEED;
-            
-            // 웹사이트 자체 소리와 겹치지 않게 하려면 웹사이트 소리를 끄거나, 
-            // 이 오디오만 배속 재생용으로 활용할 수 있습니다.
-            audio.play(); 
-            console.log(`[BlobDetector] 새 Blob 주소 추출 성공: ${blobUrl} (${TARGET_SPEED}배속 재생 시작)`);
+            // 응답이 오디오 관련이거나, binary/stream 데이터인 경우
+            if (contentType.includes('audio') || contentType.includes('octet-stream') || args[0].includes('blob')) {
+                
+                // 응답을 복사하여 blob 주소 강제 생성 (기존 웹사이트 로직 방해 금지)
+                const clone = response.clone();
+                clone.blob().then(blob => {
+                    const audioBlobUrl = URL.createObjectURL(blob);
+                    
+                    console.log("%c[Blob Audio Detected!!]", "color: green; font-weight: bold; font-size: 14px;");
+                    console.log(`주소: ${audioBlobUrl}`);
+                    
+                    // 선택 사항: 감지 즉시 백그라운드 오디오 객체로 배속 조절하여 재생하고 싶다면 아래 주석을 해제하세요.
+                    /*
+                    const audio = new Audio(audioBlobUrl);
+                    audio.playbackRate = 2.0; // 원하는 배속
+                    audio.play();
+                    */
+                });
+            }
         }
         return response;
     };
-    console.log("[BlobDetector] 오디오 네트워크 스니펫이 활성화되었습니다.");
+    console.log("[Fetch Hook] Blob 미디어 주소 자동 추적 스크립트 활성화됨.");
 })();
+
 
 
 (function() {
