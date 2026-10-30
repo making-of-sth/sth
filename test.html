@@ -1,4 +1,4 @@
-=IF(ISBLANK([F1602]), "", IF(OR([F1602]=1, [F1602]=4, [F1602]=7, [F1602]=10), "없음", "1) " & IF(TEXTAFTER([@c1602], " ", -1)="아니야?", SUBSTITUTE([@c1602], "아니야?", "아닌지 알려줘"), IF(TEXTAFTER([@c1602], " ", -1)="거죠?", SUBSTITUTE([@c1602], "거죠?", "건지 알려줘"), [@c1602]))))
+=IF(ISBLANK(F1602), "", IF(OR(F1602=1, F1602=4, F1602=7, F1602=10), "없음", "1) " & IF(RIGHT(TRIM(C1602), 4)="아니야?", LEFT(TRIM(C1602), LEN(TRIM(C1602))-4) & "아닌지 알려줘", IF(RIGHT(TRIM(C1602), 3)="거죠?", LEFT(TRIM(C1602), LEN(TRIM(C1602))-3) & "건지 알려줘", TRIM(C1602)))))
 
 
 =IF(ISBLANK([F1602]), "", 
