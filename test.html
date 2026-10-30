@@ -1,3 +1,6 @@
+=XLOOKUP(C2, '밥'!B:B, '밥'!E:E, XLOOKUP(C2, '엔젤'!B:B, '엔젤'!E:E, ""))
+
+
 =IFERROR(XLOOKUP(C2, '앨리스'!B:B, '앨리스'!E:E), IFERROR(XLOOKUP(C2, '밥'!B:B, '밥'!E:E), IFERROR(XLOOKUP(C2, '엔젤'!B:B, '엔젤'!E:E), "없음")))
 
 
