@@ -739,7 +739,7 @@
         }
 
         function convertNumberBlock(numStr, mode) {
-            numStr = numStr.replace(/,/g, "");
+            numStr = numStr.replace(/[,\s]/g, "");
             if (mode === 5) return readEnglishDigits(numStr);
             if (numStr.includes(".")) {
                 let parts = numStr.split(".");
@@ -792,6 +792,18 @@
             });
 
 
+            // Only adjacent numeric operands form an expression; units/words break it.
+            const arithmeticNumber = String.raw`(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?(?:\s*-\s*(?:\d{1,3}(?:,\d{3})+|\d+))?`;
+            const arithmeticOperator = String.raw`(?:더하기|빼기|곱하기|나누기|[+*/])`;
+            const arithmeticPattern = new RegExp(
+                String.raw`(?<![A-Za-z0-9.,])${arithmeticNumber}(?:\s*${arithmeticOperator}\s*${arithmeticNumber})+(?![A-Za-z0-9.,])`, "g");
+            const operatorNames = { "+": "더하기", "*": "곱하기", "/": "나누기" };
+            resText = resText.replace(arithmeticPattern, match => {
+                const normalized = match.replace(/\s+/g, "").replace(/[+*/]/g, op => operatorNames[op]);
+                const reading = normalized.replace(new RegExp(arithmeticNumber, "g"), num => convertNumberBlock(num, mode));
+                return protect(`[${normalized}/${reading}]`);
+            });
+
             resText = resText.replace(/\b(fm|am)\s+([0-9.]+)/ig, function (match, rad, num) {
                 const radKor = rad.toLowerCase() === "fm" ? "에프엠" : "에이엠";
                 const numKor = convertNumberBlock(num, mode);
@@ -814,7 +826,7 @@
             });
 
 
-            const numPattern = /(?:\d{1,3}(?:,\d{3})+|\d+)(?:[.-]\d+)?/g;
+            const numPattern = /(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+|\s*-\s*(?:\d{1,3}(?:,\d{3})+|\d+))?/g;
             resText = resText.replace(numPattern, function (match) {
                 return `[${match}/${convertNumberBlock(match, mode)}]`;
             });
