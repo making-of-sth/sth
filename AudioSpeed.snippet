@@ -1,0 +1,170 @@
+(function () {
+    if (window.__audio_interceptor_loaded) return;
+    window.__audio_interceptor_loaded = true;
+
+    const container = document.createElement('div');
+    container.id = '__audio_interceptor_ui';
+    container.style.cssText = `
+        position: fixed;
+        bottom: 20px;
+        right: 10px;
+        z-index: 2147483647;
+        width: 350px;
+        max-width: calc(100vw - 20px);
+        background: transparent;
+        padding: 0;
+        border: none;
+        box-shadow: none;
+    `;
+
+    const style = document.createElement('style');
+    style.textContent = `
+        #__audio_interceptor_ui audio {
+            display: block;
+            width: 100%;
+            background: transparent;
+            color-scheme: light;
+            border: none;
+            box-shadow: none;
+        }
+
+        /* 플레이어 배경 투명화 */
+        #__audio_interceptor_ui audio::-webkit-media-controls-panel,
+        #__audio_interceptor_ui audio::-webkit-media-controls-enclosure {
+            background: transparent !important;
+        }
+
+        /* 시간·음량 요소 숨김 */
+        #__audio_interceptor_ui audio::-webkit-media-controls-current-time-display,
+        #__audio_interceptor_ui audio::-webkit-media-controls-time-remaining-display,
+        #__audio_interceptor_ui audio::-webkit-media-controls-mute-button,
+        #__audio_interceptor_ui audio::-webkit-media-controls-volume-slider {
+            display: none !important;
+        }
+    `;
+
+    (document.head || document.documentElement).appendChild(style);
+    (document.body || document.documentElement).appendChild(container);
+
+    const originalFetch = window.fetch;
+    let currentBlobUrl = null;
+    let latestCaptureId = 0;
+    let playbackRate = 1;
+
+    // 페이지 단축키: [ 감속 / ] 가속
+    document.addEventListener('keydown', (event) => {
+        const isEditing = event.composedPath().some((node) =>
+            node instanceof HTMLElement &&
+            (
+                node.matches('input, textarea, select') ||
+                node.isContentEditable
+            )
+        );
+
+        if (isEditing) return;
+        if (event.ctrlKey || event.altKey || event.metaKey) return;
+
+        if (
+            event.code !== 'BracketLeft' &&
+            event.code !== 'BracketRight'
+        ) return;
+
+        const audio = container.querySelector('audio');
+        if (!audio) return;
+
+        event.preventDefault();
+
+        const delta = event.code === 'BracketRight' ? 0.25 : -0.25;
+
+        playbackRate = Math.min(
+            4,
+            Math.max(0.5, audio.playbackRate + delta)
+        );
+
+        audio.playbackRate = playbackRate;
+        audio.title = `재생 속도: ${playbackRate}배 ([ / ]로 조절)`;
+
+        console.log(`🎵 재생 속도: ${playbackRate}배`);
+    }, true);
+
+    async function captureAudio(response, captureId) {
+        let newBlobUrl = null;
+
+        try {
+            const blob = await response.blob();
+
+            // 더 최근에 감지된 오디오가 있으면 이전 결과 무시
+            if (captureId !== latestCaptureId) return;
+
+            newBlobUrl = URL.createObjectURL(blob);
+
+            const audio = document.createElement('audio');
+            audio.controls = true;
+            audio.preload = 'metadata';
+            audio.defaultPlaybackRate = playbackRate;
+            audio.src = newBlobUrl;
+            audio.playbackRate = playbackRate;
+            audio.title = `재생 속도: ${playbackRate}배 ([ / ]로 조절)`;
+
+            // 현재 플레이어에서 변경한 배속 기억
+            audio.addEventListener('ratechange', () => {
+                if (container.querySelector('audio') !== audio) return;
+
+                playbackRate = audio.playbackRate;
+                audio.title =
+                    `재생 속도: ${playbackRate}배 ([ / ]로 조절)`;
+            });
+
+            const oldAudio = container.querySelector('audio');
+
+            // 이전 플레이어의 이벤트가 배속 설정에 영향을 주지 않도록 교체
+            container.replaceChildren(audio);
+
+            if (oldAudio) {
+                oldAudio.pause();
+                oldAudio.removeAttribute('src');
+                oldAudio.load();
+            }
+
+            if (currentBlobUrl) {
+                URL.revokeObjectURL(currentBlobUrl);
+            }
+
+            currentBlobUrl = newBlobUrl;
+            newBlobUrl = null;
+
+            console.log('🎧 오디오 감지 완료');
+        } catch (error) {
+            if (newBlobUrl) URL.revokeObjectURL(newBlobUrl);
+            console.error('오디오 변환 중 오류:', error);
+        }
+    }
+
+    window.fetch = async function (...args) {
+        const response = await originalFetch.apply(this, args);
+
+        try {
+            const contentType =
+                response.headers.get('content-type') || '';
+
+            if (
+                response.ok &&
+                contentType.toLowerCase().includes('audio')
+            ) {
+                const clonedResponse = response.clone();
+                const captureId = ++latestCaptureId;
+
+                // 원래 응답은 복사본 변환을 기다리지 않고 반환
+                void captureAudio(clonedResponse, captureId);
+            }
+        } catch (error) {
+            console.error('오디오 감지 중 오류:', error);
+        }
+
+        return response;
+    };
+
+    console.log(
+        '🎧 오디오 감지 활성화 | 오른쪽 아래 | [ 감속 / ] 가속 | 0.5~4배'
+    );
+})();
