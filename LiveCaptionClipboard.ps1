@@ -31,6 +31,27 @@ function Get-LiveCaptionText {
     throw '실제 자막 문장을 읽지 못했습니다.'
 }
 
+function ConvertTo-CleanCaption {
+    param([AllowNull()][string]$Text)
+
+    if ([string]::IsNullOrWhiteSpace($Text)) { return '' }
+    $body = $Text.Trim()
+    $ending = ''
+
+    # Keep a consecutive group of symbols only at the very end.
+    $endingMatch = [regex]::Match($body, '[^\p{L}\p{M}\p{N}\s]+$')
+    if ($endingMatch.Success) {
+        $ending = $endingMatch.Value
+        $body = $body.Substring(0, $endingMatch.Index)
+    }
+
+    # Keep letters, combining marks, numbers and whitespace in the body.
+    $body = [regex]::Replace($body, '[^\p{L}\p{M}\p{N}\s]', '')
+    $body = [regex]::Replace($body, '\s+', ' ').Trim()
+    if ($body.Length -eq 0) { return '' }
+    return $body + $ending
+}
+
 $lastCopied = $null
 $lastError = $null
 Write-Host '최신 자막의 마지막 줄을 자동 복사합니다.'
@@ -42,6 +63,7 @@ while ($true) {
         $latestLine = $caption -split '\r\n|\n|\r' |
             Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
             Select-Object -Last 1
+        $latestLine = ConvertTo-CleanCaption -Text $latestLine
         if (-not [string]::IsNullOrWhiteSpace($latestLine) -and $latestLine -cne $lastCopied) {
             Set-Clipboard -Value $latestLine -ErrorAction Stop
             $lastCopied = $latestLine
@@ -58,3 +80,4 @@ while ($true) {
     }
     Start-Sleep -Milliseconds 200
 }
+
